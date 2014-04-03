@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="escape" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/escape" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+					<Add directory="src" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/escape" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O2" />
+					<Add directory="src" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-pedantic" />
+			<Add option="-Wall" />
+			<Add option="-std=c++11" />
+			<Add option="-DGLM_FORCE_RADIANS" />
+		</Compiler>
+		<Linker>
+			<Add library="glfw3" />
+			<Add library="glew32" />
+			<Add library="opengl32" />
+			<Add library="gdi32" />
+			<Add library="png" />
+			<Add library="z" />
+		</Linker>
+		<Unit filename="src/component.physical.cpp" />
+		<Unit filename="src/component.physical.hpp" />
+		<Unit filename="src/component.sprite.cpp" />
+		<Unit filename="src/component.sprite.hpp" />
+		<Unit filename="src/game.cpp" />
+		<Unit filename="src/game.hpp" />
+		<Unit filename="src/ginseng/ginseng.hpp" />
+		<Unit filename="src/inugami/animatedsprite.cpp" />
+		<Unit filename="src/inugami/animatedsprite.hpp" />
+		<Unit filename="src/inugami/camera.cpp" />
+		<Unit filename="src/inugami/camera.hpp" />
+		<Unit filename="src/inugami/core.cpp" />
+		<Unit filename="src/inugami/core.hpp" />
+		<Unit filename="src/inugami/detail/addonce.hpp" />
+		<Unit filename="src/inugami/detail/constattr.hpp" />
+		<Unit filename="src/inugami/detail/containerutils.hpp" />
+		<Unit filename="src/inugami/detail/edgedetector.hpp" />
+		<Unit filename="src/inugami/detail/streamutils.hpp" />
+		<Unit filename="src/inugami/exception.cpp" />
+		<Unit filename="src/inugami/exception.hpp" />
+		<Unit filename="src/inugami/geometry.cpp" />
+		<Unit filename="src/inugami/geometry.hpp" />
+		<Unit filename="src/inugami/image.cpp" />
+		<Unit filename="src/inugami/image.hpp" />
+		<Unit filename="src/inugami/interface.cpp" />
+		<Unit filename="src/inugami/interface.hpp" />
+		<Unit filename="src/inugami/inugami.hpp" />
+		<Unit filename="src/inugami/inugl.cpp" />
+		<Unit filename="src/inugami/inugl.h" />
+		<Unit filename="src/inugami/loaders.cpp" />
+		<Unit filename="src/inugami/loaders.hpp" />
+		<Unit filename="src/inugami/logger.hpp" />
+		<Unit filename="src/inugami/math.hpp" />
+		<Unit filename="src/inugami/mathtypes.hpp" />
+		<Unit filename="src/inugami/mesh.cpp" />
+		<Unit filename="src/inugami/mesh.hpp" />
+		<Unit filename="src/inugami/opengl.hpp" />
+		<Unit filename="src/inugami/pixel.cpp" />
+		<Unit filename="src/inugami/pixel.hpp" />
+		<Unit filename="src/inugami/profiler.cpp" />
+		<Unit filename="src/inugami/profiler.hpp" />
+		<Unit filename="src/inugami/shader.cpp" />
+		<Unit filename="src/inugami/shader.hpp" />
+		<Unit filename="src/inugami/shaderprogram.cpp" />
+		<Unit filename="src/inugami/shaderprogram.hpp" />
+		<Unit filename="src/inugami/spritesheet.cpp" />
+		<Unit filename="src/inugami/spritesheet.hpp" />
+		<Unit filename="src/inugami/texture.cpp" />
+		<Unit filename="src/inugami/texture.hpp" />
+		<Unit filename="src/inugami/transform.cpp" />
+		<Unit filename="src/inugami/transform.hpp" />
+		<Unit filename="src/inugami/utility.hpp" />
+		<Unit filename="src/main.cpp" />
+		<Unit filename="src/meta.cpp" />
+		<Unit filename="src/meta.hpp" />
+		<Unit filename="src/resourcepool.hpp" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
