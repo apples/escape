@@ -23,7 +23,7 @@ class Game
 
     Ginseng::Database entities;
 
-    Ginseng::EID playerEID;
+    Ginseng::Entity playerEID;
 
     std::mt19937 rng;
 
