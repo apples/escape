@@ -33,9 +33,10 @@
 		</Build>
 		<Compiler>
 			<Add option="-pedantic" />
-			<Add option="-Wall" />
 			<Add option="-std=c++11" />
+			<Add option="-Wall" />
 			<Add option="-DGLM_FORCE_RADIANS" />
+			<Add option="-DGLEW_STATIC" />
 		</Compiler>
 		<Linker>
 			<Add library="glfw3" />

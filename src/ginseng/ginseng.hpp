@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
 #include <vector>
 
 namespace Ginseng {
@@ -44,7 +45,7 @@ namespace _detail {
     {
         friend class Database;
         static TID tid;
-      public:
+    public:
         virtual ::std::ostream& debugPrint(::std::ostream& out) const override
         {
             out << "[ No debug message for TID " << tid << ". ]";
@@ -68,9 +69,17 @@ namespace _detail {
     template <typename K, typename V, typename H = ::std::hash<K>>
     using Table = ::std::unordered_map<K, V, H>;
 
+    template <typename K, typename V>
+    using SlowTable = ::std::map<K, V>;
+
+    template <typename T>
+    using Vec = ::std::vector<T>;
+
 // Types
 
-    struct Types
+    class Database;
+
+    namespace Types
     {
         template <typename T>
         struct EntityData
@@ -82,7 +91,7 @@ namespace _detail {
         class Entity
         {
             using Iter = typename Table<EID,EntityData<T>>::iterator;
-            friend class Database;
+            friend class _detail::Database;
 
             Iter iter;
 
@@ -119,7 +128,10 @@ namespace _detail {
         {
             ::std::unique_ptr<Entity<ComponentData>> ent; // Disgusting, this shouldn't have to be a pointer.
             ::std::unique_ptr<ComponentBase> com;
-            ComponentData(Entity<ComponentData> const& e, ::std::unique_ptr<ComponentBase>&& c);
+            ComponentData(Entity<ComponentData> const& e, ::std::unique_ptr<ComponentBase>&& c)
+                : ent(new Entity<ComponentData>(e))
+                , com(::std::move(c))
+            {}
         };
 
         struct ComponentTable
@@ -127,12 +139,7 @@ namespace _detail {
             Table<CID,ComponentData> list;
             Many<Entity<ComponentData>, Entity<ComponentData>::Hash> ents;
         };
-    };
-
-    inline Types::ComponentData::ComponentData(Entity<ComponentData> const& e, ::std::unique_ptr<ComponentBase>&& c)
-        : ent(new Entity<ComponentData>(e))
-        , com(::std::move(c))
-    {}
+    }
 
     using Entity         = Types::Entity<Types::ComponentData>;
     using EntityData     = Types::EntityData<Types::ComponentData>;
@@ -147,12 +154,35 @@ namespace _detail {
     template <typename... Ts>
     using Result = ::std::vector<RElement<Ts...>>;
 
+// Quick Erasure
+
+    struct ErasureBase
+    {
+        virtual ~ErasureBase() = 0;
+    };
+
+    inline ErasureBase::~ErasureBase()
+    {}
+
+    template <typename T>
+    struct Erase
+        : ErasureBase
+    {
+        T t;
+
+        template <typename... Us>
+        Erase(Us&&... us)
+            : t(::std::forward<Us>(us)...)
+        {}
+    };
+
 // Main Database engine
 
     class Database
     {
         Table<EID,EntityData> entities;
         Table<TID,ComponentTable> components;
+        SlowTable<Vec<TID>,::std::unique_ptr<ErasureBase>> memos;
 
         struct
         {
@@ -233,9 +263,9 @@ namespace _detail {
         }
 
         template <int I = 0, typename... Ts>
-        typename ::std::enable_if<
+        static typename ::std::enable_if<
             I < ::std::tuple_size<::std::tuple<Ts*...>>::value,
-        void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab) const
+        void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
         {
             using C = typename ::std::tuple_element<I, ::std::tuple<Ts...>>::type;
             TID tid = C::tid;
@@ -250,12 +280,23 @@ namespace _detail {
         }
 
         template <int I = 0, typename... Ts>
-        typename ::std::enable_if<
+        static typename ::std::enable_if<
             I >= ::std::tuple_size<::std::tuple<Ts*...>>::value,
-        void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab) const
+        void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
         {}
 
-      public:
+        template <int I, typename T, typename... Us>
+        static void fill_memo_vec(Vec<TID>& vt)
+        {
+            vt[I] = T::tid;
+            return fill_memo_vec<I+1, Us...>(vt);
+        }
+
+        template <int I>
+        static void fill_memo_vec(Vec<TID>& vt)
+        {}
+
+    public:
 
         enum class Selector
         {
@@ -272,9 +313,14 @@ namespace _detail {
         {
             Entity rv = newEntity();
 
+            Vec<TID> tids;
+
             for (const auto& p : ent.iter->second.coms)
             {
                 auto tid = p.first;
+
+                tids.push_back(tid);
+
                 ComponentBase const* com = p.second->second.com.get();
 
                 auto& table = components.at(tid);
@@ -291,11 +337,29 @@ namespace _detail {
                 table.ents.insert(rv);
             }
 
+            for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
+            {
+                auto a = i->first.begin();
+                auto b = i->first.end();
+                bool hit = false;
+                for (auto&& a : i->first)
+                    for (auto&& b : tids)
+                        if (a==b)
+                        {
+                            hit = true;
+                            break;
+                        }
+                if (hit) i = memos.erase(i);
+                else ++i;
+            }
+
             return rv;
         }
 
         void eraseEntity(Entity ent)
         {
+            memos.clear();
+
             for (auto&& p : ent.iter->second.coms)
             {
                 ComponentTable& tab = components.at(p.first);
@@ -317,6 +381,15 @@ namespace _detail {
         template <typename T, typename... Vs>
         T* newComponent(Entity ent, Vs&&... vs)
         {
+            for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
+            {
+                auto a = i->first.begin();
+                auto b = i->first.end();
+                auto iter = ::std::find(a, b, T::tid);
+                if (iter != b) i = memos.erase(i);
+                else ++i;
+            }
+
             if (T::tid == -1) throw; //TODO
 
             CID cid = createCID();
@@ -336,15 +409,31 @@ namespace _detail {
         }
 
         template <typename... Ts>
-        Result<Ts...> getEntities(const Selector method = Selector::INSPECT) const
+        Result<Ts...> const& getEntities(const Selector method = Selector::INSPECT)
         {
+            Vec<TID> vt (::std::tuple_size<::std::tuple<Ts...>>::value);
+            fill_memo_vec<0, Ts...>(vt);
+
+            auto iter = memos.find(vt);
+            if (iter != memos.end())
+                return static_cast<Erase<Result<Ts...>> const*>(iter->second.get())->t;
+
+            Result<Ts...> rv;
+            ::std::unique_ptr<ErasureBase> up;
+
             switch (method)
             {
                 case Selector::INSPECT:
-                    return select_inspect<Ts...>();
+                    rv = select_inspect<Ts...>();
+                    up.reset(new Erase<Result<Ts...>>(::std::move(rv)));
+                    iter = memos.emplace(::std::move(vt), ::std::move(up)).first;
+                    break;
+
+                default:
+                    throw; //TODO
             }
 
-            throw; // TODO
+            return static_cast<Erase<Result<Ts...>> const*>(iter->second.get())->t;
         }
 
         template <typename... Ts>
@@ -366,60 +455,9 @@ namespace _detail {
         {
             out << "Ginseng::Database::debugPrint() unimplemented!" << ::std::endl;
 
-#if 0
-            out << "Entity count: " << entities.size() << ::std::endl;
-            out << "Entity total: " << uidGen.eid << ::std::endl;
-            for (auto&& p : entities)
-            {
-                EID eid = p.first;
-                auto&& cids = p.second;
-
-                out << ::std::setw(3) << eid;
-                for (auto&& cid : cids)
-                {
-                    out << ' ';
-                    out << ::std::setw(3) << cid.first;
-                    out << ':';
-                    out << ::std::setw(2) << ::std::left << cid.second;
-                    out << ::std::right;
-                }
-                out << ::std::endl;
-            }
-
-            out << "Components registered: " << uidGen.tid << ::std::endl;
-            out << "Components used:       " << components.size() << ::std::endl;
-            for (auto&& p : components)
-            {
-                TID tid = p.first;
-                const ComponentTable& table = p.second;
-                const auto& list = table.list;
-                const Many<EID>& eidlist = table.eids;
-
-                ::std::vector<EID> eids (begin(eidlist), end(eidlist));
-                ::std::sort(begin(eids), end(eids));
-
-                out << "Component " << tid << ":" << ::std::endl;
-                out << "    Entities:";
-                for (auto&& eid : eids) out << ' ' << ::std::setw(5) << eid;
-                out << ::std::endl;
-                for (auto&& q : list)
-                {
-                    CID cid = q.first;
-                    const ComponentData& data = q.second;
-                    out << "    ";
-                    out << ::std::setw(5) << ::std::left << cid;
-                    out << ::std::right;
-                    out << ' ' << ::std::setw(5) << data.eid;
-                    out << ' ';
-                    data.com->debugPrint(out);
-                    out << ::std::endl;
-                }
-            }
-#endif
-
             return out;
         }
-};
+    };
 
 } // namespace _detail
 
