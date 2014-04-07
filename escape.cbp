@@ -46,8 +46,14 @@
 			<Add library="png" />
 			<Add library="z" />
 		</Linker>
+		<Unit filename="src/component.ai.cpp" />
+		<Unit filename="src/component.ai.hpp" />
+		<Unit filename="src/component.ai.playerai.cpp" />
+		<Unit filename="src/component.ai.playerai.hpp" />
 		<Unit filename="src/component.physical.cpp" />
 		<Unit filename="src/component.physical.hpp" />
+		<Unit filename="src/component.player.cpp" />
+		<Unit filename="src/component.player.hpp" />
 		<Unit filename="src/component.sprite.cpp" />
 		<Unit filename="src/component.sprite.hpp" />
 		<Unit filename="src/game.cpp" />
@@ -98,10 +104,16 @@
 		<Unit filename="src/inugami/transform.cpp" />
 		<Unit filename="src/inugami/transform.hpp" />
 		<Unit filename="src/inugami/utility.hpp" />
+		<Unit filename="src/level.cpp" />
+		<Unit filename="src/level.hpp" />
 		<Unit filename="src/main.cpp" />
 		<Unit filename="src/meta.cpp" />
 		<Unit filename="src/meta.hpp" />
+		<Unit filename="src/rect.cpp" />
+		<Unit filename="src/rect.hpp" />
 		<Unit filename="src/resourcepool.hpp" />
+		<Unit filename="src/spritedata.cpp" />
+		<Unit filename="src/spritedata.hpp" />
 		<Extensions>
 			<code_completion />
 			<envvars />
