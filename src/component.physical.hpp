@@ -2,6 +2,8 @@
 
 #include "ginseng/ginseng.hpp"
 
+#include "rect.hpp"
+
 namespace Component {
 
 class Physical
@@ -15,6 +17,10 @@ public:
     double vy = 0.0;
 
     double friction = 1.0;
+
+    bool solid = false;
+
+    Rect aabb;
 };
 
 } // namespace Component

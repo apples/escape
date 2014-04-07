@@ -92,6 +92,11 @@ Interface::Proxy::operator bool() const
     return data->state;
 }
 
+bool Interface::Proxy::operator()() const
+{
+    return data->state;
+}
+
 bool Interface::Proxy::pressed() const
 {
     return (data->edge == 1);

@@ -9,6 +9,8 @@
 #include "ginseng/ginseng.hpp"
 
 #include "resourcepool.hpp"
+#include "level.hpp"
+#include "spritedata.hpp"
 
 #include <random>
 
@@ -19,13 +21,15 @@ class Game
 
     Inugami::Camera cam_base;
 
-    ResourcePool<Inugami::Spritesheet> spritesheets;
+    ResourcePool<SpriteData> spritesheets;
 
     Ginseng::Database entities;
 
     Ginseng::Entity playerEID;
 
     std::mt19937 rng;
+
+    Level level;
 
 public:
 	Game(RenderParams params);

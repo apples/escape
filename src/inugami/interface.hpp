@@ -74,6 +74,12 @@ public:
          */
         explicit operator bool() const;
 
+        /*! @brief Evaluate state.
+         *
+         *  @return @a True if the key is down, @a false otherwise.
+         */
+        bool operator()() const;
+
         /*! @brief Down edge detection.
          *
          *  @return @a True if the key was just pressed, @a false otherwise.

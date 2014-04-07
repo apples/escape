@@ -40,8 +40,8 @@ namespace _detail {
 // Component CRTP
 
     template <typename Child>
-    class Component
-        : public _detail::ComponentBase
+    class ComponentDat
+        : public ComponentBase
     {
         friend class Database;
         static TID tid;
@@ -51,15 +51,29 @@ namespace _detail {
             out << "[ No debug message for TID " << tid << ". ]";
             return out;
         }
+    };
 
-        virtual ::std::unique_ptr<_detail::ComponentBase> clone() const override
+    template <typename Child>
+    TID ComponentDat<Child>::tid = -1;
+
+    template <typename Child, bool Factory = true>
+    class Component;
+
+    template <typename Child>
+    class Component<Child, true>
+        : public ComponentDat<Child>
+    {
+    public:
+        virtual ::std::unique_ptr<ComponentBase> clone() const override
         {
-            return ::std::unique_ptr<_detail::ComponentBase>(new Child(reinterpret_cast<const Child&>(*this)));
+            return ::std::unique_ptr<ComponentBase>(new Child(reinterpret_cast<const Child&>(*this)));
         }
     };
 
     template <typename Child>
-    TID Component<Child>::tid = -1;
+    class Component<Child, false>
+        : public ComponentDat<Child>
+    {};
 
 // Containers
 
@@ -181,7 +195,7 @@ namespace _detail {
     class Database
     {
         Table<EID,EntityData> entities;
-        Table<TID,ComponentTable> components;
+        Vec<ComponentTable> components;
         SlowTable<Vec<TID>,::std::unique_ptr<ErasureBase>> memos;
 
         struct
@@ -193,17 +207,17 @@ namespace _detail {
 
         EID createEntityID()
         {
-            return ++uidGen.eid;
+            return uidGen.eid++;
         }
 
         TID createTableID()
         {
-            return ++uidGen.tid;
+            return uidGen.tid++;
         }
 
         CID createCID()
         {
-            return ++uidGen.cid;
+            return uidGen.cid++;
         }
 
         template <int N = 2, typename T>
@@ -262,6 +276,19 @@ namespace _detail {
             return rval;
         }
 
+        template <int I, typename T, typename... Us>
+        static void fill_memo_vec(Vec<TID>& vt)
+        {
+            vt[I] = T::tid;
+            return fill_memo_vec<I+1, Us...>(vt);
+        }
+
+        template <int I>
+        static void fill_memo_vec(Vec<TID>& vt)
+        {}
+
+    // Helpers
+
         template <int I = 0, typename... Ts>
         static typename ::std::enable_if<
             I < ::std::tuple_size<::std::tuple<Ts*...>>::value,
@@ -285,18 +312,17 @@ namespace _detail {
         void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
         {}
 
-        template <int I, typename T, typename... Us>
-        static void fill_memo_vec(Vec<TID>& vt)
-        {
-            vt[I] = T::tid;
-            return fill_memo_vec<I+1, Us...>(vt);
-        }
-
-        template <int I>
-        static void fill_memo_vec(Vec<TID>& vt)
-        {}
-
     public:
+
+        template <typename... Ts>
+        static ::std::tuple<Ts*...> getComponents(Entity ent)
+        {
+            ::std::tuple<Ts*...> rv;
+
+            fill_components<0>(rv, ent.iter->second.coms);
+
+            return rv;
+        }
 
         enum class Selector
         {
@@ -375,11 +401,12 @@ namespace _detail {
         {
             if (T::tid != -1) throw; //TODO
             T::tid = createTableID();
+            components.resize(T::tid+1);
             return T::tid;
         }
 
         template <typename T, typename... Vs>
-        T* newComponent(Entity ent, Vs&&... vs)
+        T& newComponent(Entity ent, Vs&&... vs)
         {
             for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
             {
@@ -395,9 +422,9 @@ namespace _detail {
             CID cid = createCID();
 
             ::std::unique_ptr<_detail::ComponentBase> ptr (new T(::std::forward<Vs>(vs)...));
-            T* rval = static_cast<T*>(ptr.get());
+            T& rval = *static_cast<T*>(ptr.get());
 
-            ComponentTable& table = components[T::tid];
+            ComponentTable& table = components.at(T::tid);
             ComponentData dat { ent, ::std::move(ptr) };
 
             auto comiter = table.list.emplace(cid, ::std::move(dat)).first;
@@ -436,16 +463,6 @@ namespace _detail {
             return static_cast<Erase<Result<Ts...>> const*>(iter->second.get())->t;
         }
 
-        template <typename... Ts>
-        ::std::tuple<Ts*...> getComponents(Entity ent) const
-        {
-            ::std::tuple<Ts*...> rv;
-
-            fill_components<0>(rv, ent.iter->second.coms);
-
-            return rv;
-        }
-
         decltype(entities.size()) numEntities() const
         {
             return entities.size();
@@ -463,11 +480,19 @@ namespace _detail {
 
 // Public types
 
-template <typename Child>
-using Component = _detail::Component<Child>;
+    template <typename Child, bool Factory = true>
+    using Component = _detail::Component<Child, Factory>;
 
-using Entity = _detail::Entity;
-using Database = _detail::Database;
+    using Entity   = _detail::Entity;
+    using Database = _detail::Database;
+
+// Public interface
+
+    template <typename... Ts>
+    ::std::tuple<Ts*...> getComponents(Entity ent)
+    {
+        return Database::getComponents<Ts...>(ent);
+    }
 
 } // namespace Ginseng
 

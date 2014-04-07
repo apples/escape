@@ -4,6 +4,8 @@
 #include "inugami/interface.hpp"
 
 #include "meta.hpp"
+#include "component.ai.hpp"
+#include "component.ai.playerai.hpp"
 #include "component.physical.hpp"
 #include "component.sprite.hpp"
 
@@ -36,44 +38,41 @@ Game::Game(RenderParams params)
 {
     params = getParams();
 
-    logger->log("Window setup...");
     addCallback([&]{ tick(); draw(); }, 60.0);
     setWindowTitle("Escape", true);
 
-    logger->log("Camera setup...");
-    double orthox = (params.width)/4.0;
-    double orthoy = (params.height)/4.0;
+    double orthox = (params.width)/8.0;
+    double orthoy = (params.height)/8.0;
     cam_base.ortho(-orthox, orthox, -orthoy, orthoy, -10, 10);
 
-    logger->log("Loading resources...");
-    spritesheets.create("player", Image::fromNoise(64,64), 16, 16);
+    auto& sheet = spritesheets.create("player");
+    sheet.sheet = {Image::fromPNG("data/enemies.png"), 8, 8};
+    auto& anim = sheet.anims.create("walk");
+    anim.emplace_back(0,0);
+    anim.emplace_back(0,1);
 
-    logger->log("Registering components...");
+    entities.registerComponent<Component::AI>();
     entities.registerComponent<Component::Physical>();
     entities.registerComponent<Component::Sprite>();
 
-    logger->log("Creating base entity...");
     auto ent = entities.newEntity();
     playerEID = ent;
 
-    auto sprite_com = entities.newComponent<Component::Sprite>(ent);
-    sprite_com->name = "player";
+    auto& sprite_com = entities.newComponent<Component::Sprite>(ent);
+    sprite_com.name = "player";
+    sprite_com.anim = "walk";
+    sprite_com.anim_frame = 0;
+    sprite_com.delay = 10;
 
-    auto physical_com = entities.newComponent<Component::Physical>(ent);
-    physical_com->x = 0;
-    physical_com->y = 0;
+    auto& physical_com = entities.newComponent<Component::Physical>(ent);
+    physical_com.x = 0;
+    physical_com.y = 0;
 
-    uniform_real_distribution<double> xdist (-orthox, orthox);
-    uniform_real_distribution<double> ydist (-orthoy, orthoy);
-
-    logger->log("Cloning entity...");
-    for (int i=0; i<10; ++i)
-    {
-        ent = entities.cloneEntity(ent);
-        std::tie(physical_com) = entities.getComponents<Component::Physical>(ent);
-        physical_com->x = xdist(rng);
-        physical_com->y = ydist(rng);
-    }
+    auto& ai_com = entities.newComponent<Component::PlayerAI>(ent);
+    ai_com.setInput(Component::PlayerAI::LEFT, iface->key(Interface::ivkArrow('L')));
+    ai_com.setInput(Component::PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
+    ai_com.setInput(Component::PlayerAI::DOWN, iface->key(Interface::ivkArrow('D')));
+    ai_com.setInput(Component::PlayerAI::UP, iface->key(Interface::ivkArrow('U')));
 
     logger->log("Setup done.");
 }
@@ -83,11 +82,6 @@ void Game::tick()
     iface->poll();
 
     auto ESC = iface->key(Interface::ivkFunc(0));
-    auto left = iface->key(Interface::ivkArrow('L'));
-    auto right = iface->key(Interface::ivkArrow('R'));
-    auto up = iface->key(Interface::ivkArrow('U'));
-    auto down = iface->key(Interface::ivkArrow('D'));
-    auto space = iface->key(' ');
 
     if (ESC || shouldClose())
     {
@@ -95,29 +89,22 @@ void Game::tick()
         return;
     }
 
-    Component::Physical* player_physical;
-    tie(player_physical) = entities.getComponents<Component::Physical>(playerEID);
-
-    if (left)  player_physical->x -= 1;
-    if (right) player_physical->x += 1;
-    if (down)  player_physical->y -= 1;
-    if (up)    player_physical->y += 1;
-
-    if (space)
+    for (auto& ent : entities.getEntities<Component::AI>())
     {
-        for (int i=0; i<10; ++i)
-        {
-            auto ent = entities.cloneEntity(playerEID);
-            Component::Physical* physical_com;
-            std::tie(physical_com) = entities.getComponents<Component::Physical>(ent);
-            double orthox = (getParams().width)/4.0;
-            double orthoy = (getParams().height)/4.0;
-            uniform_real_distribution<double> xdist (-orthox, orthox);
-            uniform_real_distribution<double> ydist (-orthoy, orthoy);
-            physical_com->x = xdist(rng);
-            physical_com->y = ydist(rng);
-        }
-        setWindowTitle("Escape (" + to_string(entities.numEntities()) + ")", true);
+        auto& e = get<0>(ent);
+        auto& ai = *get<1>(ent);
+        ai.proc(e);
+    }
+
+    for (auto& ent : entities.getEntities<Component::Physical>())
+    {
+        auto& phys = *get<1>(ent);
+
+        phys.x += phys.vx;
+        phys.y += phys.vy;
+
+        phys.vx -= phys.vx*phys.friction;
+        phys.vy -= phys.vy*phys.friction;
     }
 }
 
@@ -140,7 +127,19 @@ void Game::draw()
         mat.translate(pos.x, pos.y);
         modelMatrix(mat);
 
-        spritesheets.get(spr.name).draw(0,0);
+        auto& sprdata = spritesheets.get(spr.name);
+        auto& anim = sprdata.anims.get(spr.anim);
+        auto& frame = anim[spr.anim_frame];
+
+        logger->log("Anim: ", spr.name, " ", spr.anim, " ", spr.anim_frame);
+
+        sprdata.sheet.draw(frame.first, frame.second);
+
+        if (++spr.ticker >= spr.delay)
+        {
+            spr.ticker = 0;
+            if (++spr.anim_frame >= anim.size()) spr.anim_frame = 0;
+        }
 
         mat.pop();
     }

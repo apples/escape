@@ -11,6 +11,10 @@ class Sprite
 {
 public:
     std::string name;
+    std::string anim;
+    int anim_frame;
+    int delay;
+    int ticker = 0;
 };
 
 } // namespace Component
