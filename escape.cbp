@@ -50,6 +50,8 @@
 		<Unit filename="src/component.ai.hpp" />
 		<Unit filename="src/component.ai.playerai.cpp" />
 		<Unit filename="src/component.ai.playerai.hpp" />
+		<Unit filename="src/component.camlook.cpp" />
+		<Unit filename="src/component.camlook.hpp" />
 		<Unit filename="src/component.physical.cpp" />
 		<Unit filename="src/component.physical.hpp" />
 		<Unit filename="src/component.sprite.cpp" />

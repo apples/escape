@@ -8,15 +8,18 @@
 #include "level.hpp"
 #include "component.ai.hpp"
 #include "component.ai.playerai.hpp"
+#include "component.camlook.hpp"
 #include "component.physical.hpp"
 #include "component.sprite.hpp"
 
 #include <tuple>
 #include <random>
 #include <string>
+#include <limits>
 
 using namespace std;
 using namespace Inugami;
+using namespace Component;
 
 #ifdef __MINGW32__
 #include <windows.h>
@@ -43,9 +46,8 @@ Game::Game(RenderParams params)
     addCallback([&]{ tick(); draw(); }, 60.0);
     setWindowTitle("Escape", true);
 
-    double orthox = (params.width)/8.0;
-    double orthoy = (params.height)/8.0;
-    cam_base.ortho(-orthox, orthox, -orthoy, orthoy, -10, 10);
+    min_view.width = (params.width)/4.0;
+    min_view.height = (params.height)/4.0;
 
     Texture enemies (Image::fromPNG("data/enemies.png"), false, false);
 
@@ -70,61 +72,105 @@ Game::Game(RenderParams params)
         }
     }
 
-    auto ent = entities.newEntity();
-    playerEID = ent;
+    {
+        auto ent = entities.newEntity();
+        playerEID = ent;
 
-    auto& sprite_com = entities.newComponent<Component::Sprite>(ent);
-    sprite_com.name = "player";
-    sprite_com.anim = "idle";
+        auto& sprite_com = entities.newComponent<Sprite>(ent);
+        sprite_com.name = "player";
+        sprite_com.anim = "idle";
 
-    auto& physical_com = entities.newComponent<Component::Physical>(ent);
-    physical_com.x = 0;
-    physical_com.y = 0;
+        auto& physical_com = entities.newComponent<Physical>(ent);
+        physical_com.x = 0;
+        physical_com.y = 0;
+        physical_com.solid = true;
+        physical_com.width = 8;
+        physical_com.height = 8;
 
-    auto& ai_com = entities.newComponent<Component::PlayerAI>(ent);
-    ai_com.setInput(Component::PlayerAI::LEFT, iface->key(Interface::ivkArrow('L')));
-    ai_com.setInput(Component::PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
-    ai_com.setInput(Component::PlayerAI::DOWN, iface->key(Interface::ivkArrow('D')));
-    ai_com.setInput(Component::PlayerAI::UP, iface->key(Interface::ivkArrow('U')));
+        auto& ai_com = entities.newComponent<PlayerAI>(ent);
+        ai_com.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
+        ai_com.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
+        ai_com.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
+        ai_com.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
+
+        entities.newComponent<CamLook>(ent);
+    }
 
     Level lvl;
 
-    vector<Rect> walls;
-    walls.reserve(lvl.width*lvl.height);
+    vector<int> walls;
+    walls.resize(lvl.width*lvl.height);
+
+    auto wallAt = [&](int r, int c)-> int& {
+        return walls[r*lvl.width+c];
+    };
 
     for (int i=0; i<lvl.height; ++i)
     {
         for (int j=0; j<lvl.width; ++j)
         {
+            auto tile = entities.newEntity();
+            auto& tile_sprite = entities.newComponent<Sprite>(tile);
+            auto& tile_pos = entities.newComponent<Physical>(tile);
+            tile_sprite.name = "tile";
+            tile_pos.y = i*8+4;
+            tile_pos.x = j*8+4;
+            tile_pos.dynamic = false;
+
             if (lvl.at(0,i,j) == 1)
             {
-                Rect r;
-                r.left = j*32;
-                r.right = r.left+32;
-                r.bottom = i*32;
-                r.top = r.bottom+32;
-                walls.push_back(r);
+                wallAt(i, j) = 1;
 
-                auto tile = entities.newEntity();
-                auto& tile_sprite = entities.newComponent<Component::Sprite>(tile);
-                auto& tile_pos = entities.newComponent<Component::Physical>(tile);
-                tile_sprite.name = "tile";
                 tile_sprite.anim = "wall";
-                tile_pos.y = i*8+4;
-                tile_pos.x = j*8+4;
-                tile_pos.dynamic = false;
             }
             else
             {
-                auto tile = entities.newEntity();
-                auto& tile_sprite = entities.newComponent<Component::Sprite>(tile);
-                auto& tile_pos = entities.newComponent<Component::Physical>(tile);
-                tile_sprite.name = "tile";
                 tile_sprite.anim = "floor";
-                tile_pos.x = j*8+4;
-                tile_pos.y = i*8+4;
-                tile_pos.dynamic = false;
             }
+        }
+    }
+
+    for (int i=0; i<lvl.height; ++i)
+    {
+        for (int j=0; j<lvl.width; ++j)
+        {
+            for (int k=j+1; k<lvl.width and wallAt(i,k)!=0; ++k)
+            {
+                ++wallAt(i,j);
+                wallAt(i,k) = 0;
+            }
+            j += wallAt(i,j);
+        }
+    }
+
+    for (int i=0; i<lvl.width; ++i)
+    {
+        for (int j=0; j<lvl.height; ++j)
+        {
+            int w = wallAt(i,j);
+
+            if (w == 0) continue;
+
+            Rect rect;
+            rect.left = i*8;
+            rect.right = rect.left + 8;
+            rect.bottom = j*8;
+            rect.top = rect.bottom + 8;
+
+            for (int k=j+1; k<lvl.height and wallAt(i,k)==w; ++k)
+            {
+                rect.top += 8;
+                wallAt(i,k) = 0;
+                ++j;
+            }
+
+            auto wall = entities.newEntity();
+            auto& wall_pos = entities.newComponent<Physical>(wall);
+            wall_pos.x = (rect.left+rect.right)/2.0;
+            wall_pos.y = (rect.bottom+rect.top)/2.0;
+            wall_pos.solid = true;
+            wall_pos.width = rect.right-rect.left;
+            wall_pos.height = rect.top-rect.bottom;
         }
     }
 }
@@ -141,14 +187,14 @@ void Game::tick()
         return;
     }
 
-    for (auto& ent : entities.getEntities<Component::AI>())
+    for (auto& ent : entities.getEntities<AI>())
     {
         auto& e = get<0>(ent);
         auto& ai = *get<1>(ent);
         ai.proc(e);
     }
 
-    for (auto& ent : entities.getEntities<Component::Physical>())
+    for (auto& ent : entities.getEntities<Physical>())
     {
         auto& phys = *get<1>(ent);
 
@@ -166,18 +212,79 @@ void Game::draw()
 {
     beginFrame();
 
-    auto cam = cam_base;
+    Camera cam;
+    {
+        Rect view;
+        view.left = numeric_limits<decltype(view.left)>::max();
+        view.bottom = view.left;
+        view.right = numeric_limits<decltype(view.right)>::lowest();
+        view.top = view.right;
+
+        for (auto& ent : entities.getEntities<Physical, CamLook>())
+        {
+            auto& pos = *get<1>(ent);
+            Rect aabb = pos.getAABB();
+
+            view.left   = min(view.left,   aabb.left);
+            view.bottom = min(view.bottom, aabb.bottom);
+            view.right  = max(view.right,  aabb.right);
+            view.top    = max(view.top,    aabb.top);
+        }
+
+        struct
+        {
+            double cx;
+            double cy;
+            double w;
+            double h;
+        } camloc =
+        {     (view.left+view.right)/2.0
+            , (view.bottom+view.top)/2.0
+            , (view.right-view.left)
+            , (view.top-view.bottom)
+        };
+
+        double rat = camloc.w/camloc.h;
+        double trat = (min_view.width)/(min_view.height);
+
+        if (rat < trat)
+        {
+            if (camloc.h < min_view.height)
+            {
+                double s = min_view.height / camloc.h;
+                camloc.h = min_view.height;
+                camloc.w *= s;
+            }
+
+            camloc.w = trat*camloc.h;
+        }
+        else
+        {
+            if (camloc.w < min_view.width)
+            {
+                double s = min_view.width / camloc.w;
+                camloc.w = min_view.width;
+                camloc.h *= s;
+            }
+
+            camloc.h = camloc.w/trat;
+        }
+
+        double hw = camloc.w/2.0;
+        double hh = camloc.h/2.0;
+        cam.ortho(camloc.cx-hw, camloc.cx+hw, camloc.cy-hh, camloc.cy+hh, -10, 10);
+    }
     applyCam(cam);
 
     Transform mat;
 
-    for (auto& ent : entities.getEntities<Component::Physical, Component::Sprite>())
+    for (auto& ent : entities.getEntities<Physical, Sprite>())
     {
         auto _ = mat.scope_push();
 
         auto& pos = *get<1>(ent);
         auto& spr = *get<2>(ent);
-logger->log(pos.x, ",", pos.y);
+
         mat.translate(pos.x, pos.y);
         modelMatrix(mat);
 

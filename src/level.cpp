@@ -10,7 +10,7 @@ Level::Level()
     for (auto&& l : data) l.resize(width*height);
 
     mt19937 rng(2014);
-    uniform_int_distribution<int> dist(0,1);
+    uniform_int_distribution<int> dist(0,4);
 
     for (int i=0; i<height; ++i)
     {
@@ -19,7 +19,7 @@ Level::Level()
             if (i==0 or j==0 or i==height-1 or j==width-1)
                 at(0, i, j) = 1;
             else
-                at(0, i, j) = dist(rng);
+                at(0, i, j) = (dist(rng)==0);
         }
     }
 }

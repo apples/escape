@@ -2,7 +2,6 @@
 #define GAME_HPP
 
 #include "inugami/core.hpp"
-#include "inugami/camera.hpp"
 #include "inugami/texture.hpp"
 #include "inugami/spritesheet.hpp"
 
@@ -10,6 +9,7 @@
 
 #include "resourcepool.hpp"
 #include "spritedata.hpp"
+#include "rect.hpp"
 
 #include <random>
 
@@ -18,7 +18,11 @@ class Game
 {
     double tileWidth = 16.0;
 
-    Inugami::Camera cam_base;
+    struct
+    {
+        double width;
+        double height;
+    } min_view;
 
     ResourcePool<SpriteData> spritesheets;
 

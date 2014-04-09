@@ -21,7 +21,10 @@ public:
     bool solid = false;
     bool dynamic = true;
 
-    Rect aabb;
+    double width;
+    double height;
+
+    Rect getAABB() const;
 };
 
 } // namespace Component
