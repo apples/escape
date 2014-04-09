@@ -81,6 +81,13 @@ public:
         return iter->second;
     }
 
+    Resource const& get(Key const& k) const
+    {
+        auto iter = data.find(k);
+        if (iter == data.end()) throw ResourcePoolError("Entry not found!");
+        return iter->second;
+    }
+
     void erase(Key const& k)
     {
         auto iter = data.find(k);

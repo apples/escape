@@ -37,6 +37,15 @@ namespace Inugami {
 class Transform
 {
     typedef std::vector<Mat4> Stack;
+
+    struct ScopePush
+    {
+        Transform* trans;
+        ScopePush(Transform* t);
+        ScopePush(ScopePush&& sp);
+        ~ScopePush();
+    };
+
 public:
 
     /*! @brief Default constructor.
@@ -67,7 +76,7 @@ public:
      *  @param pos Vector to translate along.
      */
     Transform& translate(const Vec3& pos);
-    
+
     /*! @brief Scale.
      *
      *  @param x Ratio to scale along X axis.
@@ -107,6 +116,12 @@ public:
      *  Pops the current matrix off the stack.
      */
     Transform& pop();
+
+    /*! @brief Push the stack, pop when scope exits.
+     *
+     *  Calls push() and returns an object that calls pop() when destroyed.
+     */
+    ScopePush scope_push();
 
     /*! @brief Resets the stack.
      *

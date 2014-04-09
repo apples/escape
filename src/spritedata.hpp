@@ -11,9 +11,22 @@
 class SpriteData
 {
 public:
+    struct Frame
+    {
+        int r;
+        int c;
+        int duration;
+
+        Frame(int x, int y, int z)
+            : r(x)
+            , c(y)
+            , duration(z)
+        {}
+    };
+
     Inugami::Spritesheet sheet;
 
-    ResourcePool<std::vector<std::pair<int,int>>> anims;
+    ResourcePool<std::vector<Frame>> anims;
 };
 
 #endif // SPRITEDATA_HPP

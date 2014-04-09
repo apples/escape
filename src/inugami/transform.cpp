@@ -32,6 +32,21 @@
 
 namespace Inugami {
 
+Transform::ScopePush::ScopePush(Transform* t)
+    : trans(t)
+{}
+
+Transform::ScopePush::ScopePush(ScopePush&& sp)
+    : trans(sp.trans)
+{
+    sp.trans = nullptr;
+}
+
+Transform::ScopePush::~ScopePush()
+{
+    if (trans) trans->pop();
+}
+
 Transform::Transform()
     : stack({Mat4(1.f)})
 {}
@@ -89,6 +104,12 @@ Transform& Transform::pop()
 {
     stack.pop_back();
     return *this;
+}
+
+Transform::ScopePush Transform::scope_push()
+{
+    push();
+    return ScopePush(this);
 }
 
 Transform& Transform::reset()

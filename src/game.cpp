@@ -47,9 +47,9 @@ Game::Game(RenderParams params)
 
     auto& sheet = spritesheets.create("player");
     sheet.sheet = {Image::fromPNG("data/enemies.png"), 8, 8};
-    auto& anim = sheet.anims.create("walk");
-    anim.emplace_back(0,0);
-    anim.emplace_back(0,1);
+    auto& anim = sheet.anims.create("idle");
+    anim.emplace_back(0,0,10);
+    anim.emplace_back(0,1,10);
 
     entities.registerComponent<Component::AI>();
     entities.registerComponent<Component::Physical>();
@@ -60,9 +60,7 @@ Game::Game(RenderParams params)
 
     auto& sprite_com = entities.newComponent<Component::Sprite>(ent);
     sprite_com.name = "player";
-    sprite_com.anim = "walk";
-    sprite_com.anim_frame = 0;
-    sprite_com.delay = 10;
+    sprite_com.anim = "idle";
 
     auto& physical_com = entities.newComponent<Component::Physical>(ent);
     physical_com.x = 0;
@@ -119,7 +117,7 @@ void Game::draw()
 
     for (auto& ent : entities.getEntities<Component::Physical, Component::Sprite>())
     {
-        mat.push();
+        auto _ = mat.scope_push();
 
         auto& pos = *get<1>(ent);
         auto& spr = *get<2>(ent);
@@ -127,21 +125,19 @@ void Game::draw()
         mat.translate(pos.x, pos.y);
         modelMatrix(mat);
 
-        auto& sprdata = spritesheets.get(spr.name);
-        auto& anim = sprdata.anims.get(spr.anim);
-        auto& frame = anim[spr.anim_frame];
+        auto const& sprdata = spritesheets.get(spr.name);
+        auto const& anim = sprdata.anims.get(spr.anim);
 
-        logger->log("Anim: ", spr.name, " ", spr.anim, " ", spr.anim_frame);
-
-        sprdata.sheet.draw(frame.first, frame.second);
-
-        if (++spr.ticker >= spr.delay)
+        if (--spr.ticker <= 0)
         {
-            spr.ticker = 0;
-            if (++spr.anim_frame >= anim.size()) spr.anim_frame = 0;
+            ++spr.anim_frame;
+            if (spr.anim_frame >= anim.size()) spr.anim_frame = 0;
+            spr.ticker = anim[spr.anim_frame].duration;
         }
 
-        mat.pop();
+        auto const& frame = anim[spr.anim_frame];
+
+        sprdata.sheet.draw(frame.r, frame.c);
     }
 
     endFrame();

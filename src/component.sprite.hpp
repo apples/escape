@@ -12,8 +12,7 @@ class Sprite
 public:
     std::string name;
     std::string anim;
-    int anim_frame;
-    int delay;
+    int anim_frame = -1;
     int ticker = 0;
 };
 
