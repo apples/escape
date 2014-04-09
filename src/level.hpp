@@ -10,10 +10,10 @@ class Level
     using Layer = std::vector<Tile>;
     std::array<Layer,4> data;
 
+public:
     int width;
     int height;
 
-public:
     Level();
 
     Tile& at(int l, int r, int c);

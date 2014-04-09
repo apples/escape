@@ -19,6 +19,7 @@ public:
     double friction = 1.0;
 
     bool solid = false;
+    bool dynamic = true;
 
     Rect aabb;
 };

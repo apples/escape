@@ -9,7 +9,6 @@
 #include "ginseng/ginseng.hpp"
 
 #include "resourcepool.hpp"
-#include "level.hpp"
 #include "spritedata.hpp"
 
 #include <random>
@@ -28,8 +27,6 @@ class Game
     Ginseng::Entity playerEID;
 
     std::mt19937 rng;
-
-    Level level;
 
 public:
 	Game(RenderParams params);

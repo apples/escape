@@ -4,6 +4,8 @@
 #include "inugami/interface.hpp"
 
 #include "meta.hpp"
+#include "rect.hpp"
+#include "level.hpp"
 #include "component.ai.hpp"
 #include "component.ai.playerai.hpp"
 #include "component.physical.hpp"
@@ -45,15 +47,28 @@ Game::Game(RenderParams params)
     double orthoy = (params.height)/8.0;
     cam_base.ortho(-orthox, orthox, -orthoy, orthoy, -10, 10);
 
-    auto& sheet = spritesheets.create("player");
-    sheet.sheet = {Image::fromPNG("data/enemies.png"), 8, 8};
-    auto& anim = sheet.anims.create("idle");
-    anim.emplace_back(0,0,10);
-    anim.emplace_back(0,1,10);
+    Texture enemies (Image::fromPNG("data/enemies.png"), false, false);
 
-    entities.registerComponent<Component::AI>();
-    entities.registerComponent<Component::Physical>();
-    entities.registerComponent<Component::Sprite>();
+    {
+        auto& sheet = spritesheets.create("player");
+        sheet.sheet = {enemies, 8, 8};
+        auto& anim = sheet.anims.create("idle");
+        anim.emplace_back(0,0,10);
+        anim.emplace_back(0,1,10);
+    }
+
+    {
+        auto& sheet = spritesheets.create("tile");
+        sheet.sheet = {enemies, 8, 8};
+        {
+            auto& anim = sheet.anims.create("floor");
+            anim.emplace_back(1,1,10);
+        }
+        {
+            auto& anim = sheet.anims.create("wall");
+            anim.emplace_back(0,0,10);
+        }
+    }
 
     auto ent = entities.newEntity();
     playerEID = ent;
@@ -72,7 +87,46 @@ Game::Game(RenderParams params)
     ai_com.setInput(Component::PlayerAI::DOWN, iface->key(Interface::ivkArrow('D')));
     ai_com.setInput(Component::PlayerAI::UP, iface->key(Interface::ivkArrow('U')));
 
-    logger->log("Setup done.");
+    Level lvl;
+
+    vector<Rect> walls;
+    walls.reserve(lvl.width*lvl.height);
+
+    for (int i=0; i<lvl.height; ++i)
+    {
+        for (int j=0; j<lvl.width; ++j)
+        {
+            if (lvl.at(0,i,j) == 1)
+            {
+                Rect r;
+                r.left = j*32;
+                r.right = r.left+32;
+                r.bottom = i*32;
+                r.top = r.bottom+32;
+                walls.push_back(r);
+
+                auto tile = entities.newEntity();
+                auto& tile_sprite = entities.newComponent<Component::Sprite>(tile);
+                auto& tile_pos = entities.newComponent<Component::Physical>(tile);
+                tile_sprite.name = "tile";
+                tile_sprite.anim = "wall";
+                tile_pos.y = i*8+4;
+                tile_pos.x = j*8+4;
+                tile_pos.dynamic = false;
+            }
+            else
+            {
+                auto tile = entities.newEntity();
+                auto& tile_sprite = entities.newComponent<Component::Sprite>(tile);
+                auto& tile_pos = entities.newComponent<Component::Physical>(tile);
+                tile_sprite.name = "tile";
+                tile_sprite.anim = "floor";
+                tile_pos.x = j*8+4;
+                tile_pos.y = i*8+4;
+                tile_pos.dynamic = false;
+            }
+        }
+    }
 }
 
 void Game::tick()
@@ -98,6 +152,8 @@ void Game::tick()
     {
         auto& phys = *get<1>(ent);
 
+        if (!phys.dynamic) continue;
+
         phys.x += phys.vx;
         phys.y += phys.vy;
 
@@ -121,7 +177,7 @@ void Game::draw()
 
         auto& pos = *get<1>(ent);
         auto& spr = *get<2>(ent);
-
+logger->log(pos.x, ",", pos.y);
         mat.translate(pos.x, pos.y);
         modelMatrix(mat);
 

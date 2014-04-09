@@ -52,8 +52,6 @@
 		<Unit filename="src/component.ai.playerai.hpp" />
 		<Unit filename="src/component.physical.cpp" />
 		<Unit filename="src/component.physical.hpp" />
-		<Unit filename="src/component.player.cpp" />
-		<Unit filename="src/component.player.hpp" />
 		<Unit filename="src/component.sprite.cpp" />
 		<Unit filename="src/component.sprite.hpp" />
 		<Unit filename="src/game.cpp" />

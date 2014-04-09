@@ -24,6 +24,14 @@ using TID = ::std::int_fast64_t; // Table ID
 
 namespace _detail {
 
+// Type Info
+
+    inline TID nextTID()
+    {
+        static TID tid = 0;
+        return ++tid;
+    }
+
 // Component Base
 
     class ComponentBase
@@ -44,17 +52,19 @@ namespace _detail {
         : public ComponentBase
     {
         friend class Database;
-        static TID tid;
     public:
+        static TID getTID()
+        {
+            static TID tid = nextTID();
+            return tid;
+        }
+
         virtual ::std::ostream& debugPrint(::std::ostream& out) const override
         {
-            out << "[ No debug message for TID " << tid << ". ]";
+            out << "[ No debug message for TID " << getTID() << ". ]";
             return out;
         }
     };
-
-    template <typename Child>
-    TID ComponentDat<Child>::tid = -1;
 
     template <typename Child, bool Factory = true>
     class Component;
@@ -195,24 +205,18 @@ namespace _detail {
     class Database
     {
         Table<EID,EntityData> entities;
-        Vec<ComponentTable> components;
+        Table<TID,ComponentTable> components;
         SlowTable<Vec<TID>,::std::unique_ptr<ErasureBase>> memos;
 
         struct
         {
             EID eid = 0;
-            TID tid = 0;
             CID cid = 0;
         } uidGen;
 
         EID createEntityID()
         {
             return uidGen.eid++;
-        }
-
-        TID createTableID()
-        {
-            return uidGen.tid++;
         }
 
         CID createCID()
@@ -230,7 +234,7 @@ namespace _detail {
 
             auto const& coms = ::std::get<0>(ele).iter->second.coms;
 
-            auto iter = coms.find(Type::tid);
+            auto iter = coms.find(Type::getTID());
 
             if (iter == coms.end())
             {
@@ -255,7 +259,11 @@ namespace _detail {
         {
             Result<T, Us...> rval;
 
-            const ComponentTable& table = components.at(T::tid);
+            auto iter = components.find(T::getTID());
+            if (iter == components.end())
+                return rval;
+
+            const ComponentTable& table = iter->second;
 
             for (auto const& p : table.list)
             {
@@ -279,7 +287,7 @@ namespace _detail {
         template <int I, typename T, typename... Us>
         static void fill_memo_vec(Vec<TID>& vt)
         {
-            vt[I] = T::tid;
+            vt[I] = T::getTID();
             return fill_memo_vec<I+1, Us...>(vt);
         }
 
@@ -295,7 +303,7 @@ namespace _detail {
         void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
         {
             using C = typename ::std::tuple_element<I, ::std::tuple<Ts...>>::type;
-            TID tid = C::tid;
+            TID tid = C::getTID();
 
             auto iter = etab.find(tid);
             if (iter != etab.end())
@@ -396,41 +404,32 @@ namespace _detail {
             entities.erase(ent.iter);
         }
 
-        template <typename T>
-        TID registerComponent()
-        {
-            if (T::tid != -1) throw; //TODO
-            T::tid = createTableID();
-            components.resize(T::tid+1);
-            return T::tid;
-        }
-
         template <typename T, typename... Vs>
         T& newComponent(Entity ent, Vs&&... vs)
         {
+            TID tid = T::getTID();
+
             for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
             {
                 auto a = i->first.begin();
                 auto b = i->first.end();
-                auto iter = ::std::find(a, b, T::tid);
+                auto iter = ::std::find(a, b, tid);
                 if (iter != b) i = memos.erase(i);
                 else ++i;
             }
-
-            if (T::tid == -1) throw; //TODO
 
             CID cid = createCID();
 
             ::std::unique_ptr<_detail::ComponentBase> ptr (new T(::std::forward<Vs>(vs)...));
             T& rval = *static_cast<T*>(ptr.get());
 
-            ComponentTable& table = components.at(T::tid);
+            ComponentTable& table = components[tid];
             ComponentData dat { ent, ::std::move(ptr) };
 
             auto comiter = table.list.emplace(cid, ::std::move(dat)).first;
             table.ents.insert(ent);
 
-            ent.iter->second.coms.emplace(T::tid, comiter);
+            ent.iter->second.coms.emplace(tid, comiter);
 
             return rval;
         }
