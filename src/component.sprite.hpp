@@ -6,13 +6,12 @@
 
 namespace Component {
 
-class Sprite
-    : public Ginseng::Component<Sprite>
+struct Sprite
+    : Ginseng::Component<Sprite>
 {
-public:
     std::string name;
     std::string anim;
-    int anim_frame = -1;
+    unsigned anim_frame = -1;
     int ticker = 0;
 };
 

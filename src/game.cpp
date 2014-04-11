@@ -6,11 +6,7 @@
 #include "meta.hpp"
 #include "rect.hpp"
 #include "level.hpp"
-#include "component.ai.hpp"
-#include "component.ai.playerai.hpp"
-#include "component.camlook.hpp"
-#include "component.physical.hpp"
-#include "component.sprite.hpp"
+#include "components.hpp"
 
 #include <tuple>
 #include <random>
@@ -76,24 +72,31 @@ Game::Game(RenderParams params)
         auto ent = entities.newEntity();
         playerEID = ent;
 
-        auto& sprite_com = entities.newComponent<Sprite>(ent);
-        sprite_com.name = "player";
-        sprite_com.anim = "idle";
+        auto& sprite = entities.newComponent<Sprite>(ent);
+        sprite.name = "player";
+        sprite.anim = "idle";
 
-        auto& physical_com = entities.newComponent<Physical>(ent);
-        physical_com.x = 0;
-        physical_com.y = 0;
-        physical_com.solid = true;
-        physical_com.width = 8;
-        physical_com.height = 8;
+        auto& pos = entities.newComponent<Position>(ent);
+        pos.x = 0;
+        pos.y = 0;
 
-        auto& ai_com = entities.newComponent<PlayerAI>(ent);
-        ai_com.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
-        ai_com.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
-        ai_com.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
-        ai_com.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
+        auto& vel = entities.newComponent<Velocity>(ent);
 
-        entities.newComponent<CamLook>(ent);
+        auto& solid = entities.newComponent<Solid>(ent);
+        solid.width = 8;
+        solid.height = 8;
+
+        auto& ai = entities.newComponent<PlayerAI>(ent);
+        ai.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
+        ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
+        ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
+        ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
+
+        auto& cam = entities.newComponent<CamLook>(ent);
+        cam.aabb.left   = -4;
+        cam.aabb.right  =  4;
+        cam.aabb.bottom = -4;
+        cam.aabb.top    =  4;
     }
 
     Level lvl;
@@ -110,22 +113,22 @@ Game::Game(RenderParams params)
         for (int j=0; j<lvl.width; ++j)
         {
             auto tile = entities.newEntity();
-            auto& tile_sprite = entities.newComponent<Sprite>(tile);
-            auto& tile_pos = entities.newComponent<Physical>(tile);
-            tile_sprite.name = "tile";
-            tile_pos.y = i*8+4;
-            tile_pos.x = j*8+4;
-            tile_pos.dynamic = false;
+
+            auto& pos = entities.newComponent<Position>(tile);
+            pos.y = i*8+4;
+            pos.x = j*8+4;
+
+            auto& sprite = entities.newComponent<Sprite>(tile);
+            sprite.name = "tile";
 
             if (lvl.at(0,i,j) == 1)
             {
                 wallAt(i, j) = 1;
-
-                tile_sprite.anim = "wall";
+                sprite.anim = "wall";
             }
             else
             {
-                tile_sprite.anim = "floor";
+                sprite.anim = "floor";
             }
         }
     }
@@ -147,30 +150,30 @@ Game::Game(RenderParams params)
     {
         for (int j=0; j<lvl.height; ++j)
         {
-            int w = wallAt(i,j);
+            if (wallAt(i,j) == 0) continue;
 
-            if (w == 0) continue;
-
-            Rect rect;
-            rect.left = i*8;
-            rect.right = rect.left + 8;
-            rect.bottom = j*8;
-            rect.top = rect.bottom + 8;
+            double cx = i*8 + 4;
+            double cy = j*8 + 4;
+            double w = 8;
+            double h = 8;
 
             for (int k=j+1; k<lvl.height and wallAt(i,k)==w; ++k)
             {
-                rect.top += 8;
+                cy += 4;
+                h += 8;
                 wallAt(i,k) = 0;
                 ++j;
             }
 
             auto wall = entities.newEntity();
-            auto& wall_pos = entities.newComponent<Physical>(wall);
-            wall_pos.x = (rect.left+rect.right)/2.0;
-            wall_pos.y = (rect.bottom+rect.top)/2.0;
-            wall_pos.solid = true;
-            wall_pos.width = rect.right-rect.left;
-            wall_pos.height = rect.top-rect.bottom;
+
+            auto& pos = entities.newComponent<Position>(wall);
+            pos.x = cx;
+            pos.y = cy;
+
+            auto& solid = entities.newComponent<Solid>(wall);
+            solid.width = w;
+            solid.height = h;
         }
     }
 }
@@ -194,17 +197,16 @@ void Game::tick()
         ai.proc(e);
     }
 
-    for (auto& ent : entities.getEntities<Physical>())
+    for (auto& ent : entities.getEntities<Position,Velocity>())
     {
-        auto& phys = *get<1>(ent);
+        auto& pos = *get<1>(ent);
+        auto& vel = *get<2>(ent);
 
-        if (!phys.dynamic) continue;
+        pos.x += vel.vx;
+        pos.y += vel.vy;
 
-        phys.x += phys.vx;
-        phys.y += phys.vy;
-
-        phys.vx -= phys.vx*phys.friction;
-        phys.vy -= phys.vy*phys.friction;
+        vel.vx -= vel.vx*vel.friction;
+        vel.vy -= vel.vy*vel.friction;
     }
 }
 
@@ -220,15 +222,15 @@ void Game::draw()
         view.right = numeric_limits<decltype(view.right)>::lowest();
         view.top = view.right;
 
-        for (auto& ent : entities.getEntities<Physical, CamLook>())
+        for (auto& ent : entities.getEntities<Position, CamLook>())
         {
             auto& pos = *get<1>(ent);
-            Rect aabb = pos.getAABB();
+            auto& cam = *get<2>(ent);
 
-            view.left   = min(view.left,   aabb.left);
-            view.bottom = min(view.bottom, aabb.bottom);
-            view.right  = max(view.right,  aabb.right);
-            view.top    = max(view.top,    aabb.top);
+            view.left   = min(view.left,   pos.x + cam.aabb.left);
+            view.bottom = min(view.bottom, pos.y + cam.aabb.bottom);
+            view.right  = max(view.right,  pos.x + cam.aabb.right);
+            view.top    = max(view.top,    pos.y + cam.aabb.top);
         }
 
         struct
@@ -278,7 +280,7 @@ void Game::draw()
 
     Transform mat;
 
-    for (auto& ent : entities.getEntities<Physical, Sprite>())
+    for (auto& ent : entities.getEntities<Position, Sprite>())
     {
         auto _ = mat.scope_push();
 

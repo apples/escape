@@ -36,6 +36,10 @@ namespace _detail {
 
     class ComponentBase
     {
+    protected:
+        ComponentBase() = default;
+        ComponentBase(ComponentBase const&) = default;
+        ComponentBase(ComponentBase&&) noexcept = default;
     public:
         virtual ~ComponentBase() = 0;
         virtual ::std::ostream& debugPrint(::std::ostream& out) const = 0;
@@ -373,8 +377,6 @@ namespace _detail {
 
             for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
             {
-                auto a = i->first.begin();
-                auto b = i->first.end();
                 bool hit = false;
                 for (auto&& a : i->first)
                     for (auto&& b : tids)

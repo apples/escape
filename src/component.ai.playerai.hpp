@@ -7,10 +7,9 @@
 
 namespace Component {
 
-class PlayerAI
-    : public AIFactory<PlayerAI>
+struct PlayerAI
+    : AIFactory<PlayerAI>
 {
-public:
     enum Input
     {
         LEFT,

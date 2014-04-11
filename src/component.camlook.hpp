@@ -3,11 +3,15 @@
 
 #include "ginseng/ginseng.hpp"
 
+#include "rect.hpp"
+
 namespace Component {
 
-class CamLook
-    : public Ginseng::Component<CamLook>
-{};
+struct CamLook
+    : Ginseng::Component<CamLook>
+{
+    Rect aabb;
+};
 
 } // namespace Component
 

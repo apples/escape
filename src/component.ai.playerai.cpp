@@ -1,6 +1,6 @@
 #include "component.ai.playerai.hpp"
 
-#include "component.physical.hpp"
+#include "components.hpp"
 
 #include <tuple>
 using namespace std;
@@ -9,14 +9,14 @@ namespace Component {
 
 void PlayerAI::proc(Ginseng::Entity ent)
 {
-    Physical* phys;
-    tie(phys) = Ginseng::getComponents<Physical>(ent);
+    auto comps = Ginseng::getComponents<Velocity>(ent);
+    auto& vel = *get<0>(comps);
 
-    if (inputs[LEFT]())  phys->vx -= 1;
-    if (inputs[RIGHT]()) phys->vx += 1;
+    if (inputs[LEFT]())  vel.vx -= 1;
+    if (inputs[RIGHT]()) vel.vx += 1;
 
-    if (inputs[UP]())    phys->vy += 1;
-    if (inputs[DOWN]())  phys->vy -= 1;
+    if (inputs[UP]())    vel.vy += 1;
+    if (inputs[DOWN]())  vel.vy -= 1;
 }
 
 void PlayerAI::setInput(Input i, std::function<bool()> func)
