@@ -31,7 +31,11 @@
 #include "inugami/logger.hpp"
 #include "inugami/profiler.hpp"
 
+#include <cstdint>
+
 extern Inugami::Logger<>* logger;
 extern Inugami::Profiler* profiler;
+
+std::uint_fast32_t nd_rand();
 
 #endif // LOG_H

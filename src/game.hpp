@@ -16,27 +16,47 @@
 class Game
 	: public Inugami::Core
 {
-    double tileWidth = 16.0;
 
-    struct
-    {
-        double width;
-        double height;
-    } min_view;
+    // Configuration
 
-    ResourcePool<SpriteData> spritesheets;
+        double tileWidth = 16.0;
 
-    Ginseng::Database entities;
+        struct
+        {
+            double width;
+            double height;
+        } min_view;
 
-    Ginseng::Entity playerEID;
+    // Resources
 
-    std::mt19937 rng;
+        ResourcePool<SpriteData> spritesheets;
+
+    // Entities
+
+        Ginseng::Database entities;
+
+        Ginseng::Entity playerEID;
+
+    // Support
+
+        std::mt19937 rng;
 
 public:
-	Game(RenderParams params);
+        Game(RenderParams params);
 
-	void tick();
-	void draw();
+    // Tick Functions
+
+        void tick();
+
+        void procAIs();
+        void runPhysics();
+
+    // Draw Functions
+
+        void draw();
+
+        void setupCamera();
+        void drawSprites();
 };
 
 #endif // GAME_HPP
