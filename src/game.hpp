@@ -29,12 +29,12 @@ class Game
 
     // Resources
 
-        ResourcePool<SpriteData> spritesheets;
+        ResourcePool<Inugami::Texture> textures;
+        ResourcePool<SpriteData> sprites;
 
     // Entities
 
         Ginseng::Database entities;
-
         Ginseng::Entity playerEID;
 
     // Support
@@ -43,6 +43,9 @@ class Game
 
 public:
         Game(RenderParams params);
+
+        void loadTextures();
+        void loadSprites();
 
     // Tick Functions
 

@@ -38,4 +38,25 @@ extern Inugami::Profiler* profiler;
 
 std::uint_fast32_t nd_rand();
 
+template <typename T>
+std::ostream& print(std::ostream& os, T const& t)
+{
+    return (os << t);
+}
+
+template <typename T, typename... Ts>
+std::ostream& print(std::ostream& os, T const& t, Ts const&... ts)
+{
+    os << t;
+    return print(ts...);
+}
+
+template <typename... Ts>
+std::string stringify(Ts&&... ts)
+{
+    std::stringstream ss;
+    print(ss, ts...);
+    return ss.str();
+}
+
 #endif // LOG_H

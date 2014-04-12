@@ -44,6 +44,7 @@
 			<Add library="glew32" />
 			<Add library="opengl32" />
 			<Add library="gdi32" />
+			<Add library="yaml-cpp" />
 			<Add library="png" />
 			<Add library="z" />
 		</Linker>

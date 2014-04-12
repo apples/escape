@@ -1,0 +1,26 @@
+---
+player:
+    texture: enemies
+    width: 8
+    height: 8
+    anims:
+        idle:
+            - r: 0
+              c: 0
+              dur: 10
+            - r: 0
+              c: 1
+              dur: 10
+tile: 
+    texture: enemies
+    width: 8
+    height: 8
+    anims:
+        wall:
+            - r: 0
+              c: 0
+              dur: 10
+        floor:
+            - r: 1
+              c: 1
+              dur: 10

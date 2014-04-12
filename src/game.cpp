@@ -13,6 +13,8 @@
 #include <string>
 #include <limits>
 
+#include <yaml-cpp/yaml.h>
+
 using namespace std;
 using namespace Inugami;
 using namespace Component;
@@ -35,28 +37,8 @@ using namespace Component;
 
     // Resources
 
-        Texture enemies (Image::fromPNG("data/enemies.png"), false, false);
-
-        {
-            auto& sheet = spritesheets.create("player");
-            sheet.sheet = {enemies, 8, 8};
-            auto& anim = sheet.anims.create("idle");
-            anim.emplace_back(0,0,10);
-            anim.emplace_back(0,1,10);
-        }
-
-        {
-            auto& sheet = spritesheets.create("tile");
-            sheet.sheet = {enemies, 8, 8};
-            {
-                auto& anim = sheet.anims.create("floor");
-                anim.emplace_back(1,1,10);
-            }
-            {
-                auto& anim = sheet.anims.create("wall");
-                anim.emplace_back(0,0,10);
-            }
-        }
+        loadTextures();
+        loadSprites();
 
     // Entities
 
@@ -169,6 +151,69 @@ using namespace Component;
                 solid.width = w;
                 solid.height = h;
             }
+        }
+    }
+
+// Resource and Configuration Functions
+
+    void Game::loadTextures()
+    {
+        using namespace YAML;
+
+        auto conf = YAML::LoadFile("data/textures.yaml");
+
+        for (auto const& p : conf)
+        {
+            auto file_node   = p.second["file"];
+            auto smooth_node = p.second["smooth"];
+            auto clamp_node  = p.second["clamp"];
+
+            auto name = p.first.as<string>();
+            auto file = file_node.as<string>();
+            auto smooth = (smooth_node? smooth_node.as<bool>() : false);
+            auto clamp  = ( clamp_node?  clamp_node.as<bool>() : false);
+            textures.create(name, Image::fromPNG("data/"+file), smooth, clamp);
+        }
+    }
+
+    void Game::loadSprites()
+    {
+        using namespace YAML;
+
+        auto conf = LoadFile("data/sprites.yaml");
+
+        for (auto const& spr : conf)
+        {
+            auto name = spr.first.as<string>();
+            SpriteData data;
+
+            auto texname = spr.second["texture"].as<string>();
+            auto width = spr.second["width"].as<int>();
+            auto height = spr.second["height"].as<int>();
+            auto const& anims = spr.second["anims"];
+
+            data.sheet = Spritesheet(textures.get(texname), width, height);
+
+            for (auto const& anim : anims)
+            {
+                auto anim_name = anim.first.as<string>();
+                auto& frame_vec = data.anims.create(anim_name);
+
+                for (auto const& frame : anim.second)
+                {
+                    auto r_node = frame["r"];
+                    auto c_node = frame["c"];
+                    auto dur_node = frame["dur"];
+
+                    auto r = r_node.as<int>();
+                    auto c = c_node.as<int>();
+                    auto dur = dur_node.as<int>();
+
+                    frame_vec.emplace_back(r, c, dur);
+                }
+            }
+
+            sprites.create(name, move(data));
         }
     }
 
@@ -308,7 +353,7 @@ using namespace Component;
             mat.translate(pos.x, pos.y);
             modelMatrix(mat);
 
-            auto const& sprdata = spritesheets.get(spr.name);
+            auto const& sprdata = sprites.get(spr.name);
             auto const& anim = sprdata.anims.get(spr.anim);
 
             if (--spr.ticker <= 0)
