@@ -2,10 +2,7 @@
 #define GINSENG_HPP
 
 #include <cstdint>
-#include <cstddef>
 #include <algorithm>
-#include <iomanip>
-#include <iostream>
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -32,6 +29,178 @@ namespace _detail {
         return ++tid;
     }
 
+// Component Tags
+
+    template <typename T>
+    struct Not
+    {
+        static TID getTID()
+        {
+            return -T::getTID();
+        }
+    };
+
+// Traits
+
+    template <typename... Ts>
+    struct TypeList
+    {};
+
+    template <typename T, typename U>
+    struct TypeListCat;
+
+    template <typename... Ts, typename... Us>
+    struct TypeListCat<TypeList<Ts...>, TypeList<Us...>>
+    {
+        using type = TypeList<Ts..., Us...>;
+    };
+
+    template <typename... Ts>
+    struct Count
+        : ::std::integral_constant<int, ::std::tuple_size<::std::tuple<Ts*...>>::value>
+    {};
+
+    // IsNot
+
+        template <typename>
+        struct IsNot;
+
+        template <typename T>
+        struct IsNot
+            : ::std::false_type
+        {};
+
+        template <typename T>
+        struct IsNot<Not<T>>
+            : ::std::true_type
+        {};
+
+    // RemoveNot
+
+        template <typename...>
+        struct RemoveNot;
+
+        template <typename T, typename... Us>
+        struct RemoveNot<T, Us...>
+        {
+            using type = typename TypeListCat<TypeList<T>, typename RemoveNot<Us...>::type>::type;
+        };
+
+        template <typename T, typename... Us>
+        struct RemoveNot<Not<T>, Us...>
+        {
+            using type = typename RemoveNot<Us...>::type;
+        };
+
+        template <>
+        struct RemoveNot<>
+        {
+            using type = TypeList<>;
+        };
+
+    // GetNots
+
+        template <typename...>
+        struct GetNots;
+
+        template <typename T, typename... Us>
+        struct GetNots<T, Us...>
+        {
+            using type = typename GetNots<Us...>::type;
+        };
+
+        template <typename T, typename... Us>
+        struct GetNots<Not<T>, Us...>
+        {
+            using type = typename TypeListCat<TypeList<T>, typename GetNots<Us...>::type>::type;
+        };
+
+        template <>
+        struct GetNots<>
+        {
+            using type = TypeList<>;
+        };
+
+    // AddPointer
+
+        template <typename...>
+        struct AddPointer;
+
+        template <template <typename...> class Tup, typename... Ts>
+        struct AddPointer<Tup<Ts...>>
+        {
+            using type = Tup<Ts*...>;
+        };
+
+    // ToTuple
+
+        template <typename...>
+        struct ToTuple;
+
+        template <template <typename...> class Tup, typename... Ts>
+        struct ToTuple<Tup<Ts...>>
+        {
+            using type = ::std::tuple<Ts...>;
+        };
+
+    // Filters
+
+        // IsOneOf
+
+            template <typename, typename...>
+            struct IsOneOf;
+
+            template <typename T, typename U, typename... Vs>
+            struct IsOneOf<T, U, Vs...>
+                : IsOneOf<T, Vs...>::value
+            {};
+
+            template <typename T, typename... Vs>
+            struct IsOneOf<T, T, Vs...>
+                : ::std::true_type
+            {};
+
+            template <typename T>
+            struct IsOneOf<T>
+                : ::std::false_type
+            {};
+
+// Containers
+
+    template <typename T, typename H = ::std::hash<T>>
+    using Many = ::std::unordered_set<T, H>;
+
+    template <typename K, typename V, typename H = ::std::hash<K>>
+    using Table = ::std::unordered_map<K, V, H>;
+
+    template <typename K, typename V>
+    using SlowTable = ::std::map<K, V>;
+
+    template <typename T>
+    using Vec = ::std::vector<T>;
+
+    // Quick Erasure
+
+        struct ErasureBase
+        {
+            virtual ~ErasureBase() = 0;
+        };
+
+        inline ErasureBase::~ErasureBase()
+        {}
+
+        template <typename T>
+        struct Erase
+            : ErasureBase
+        {
+            T t;
+
+            template <typename... Us>
+            Erase(Us&&... us)
+                : t(::std::forward<Us>(us)...)
+            {}
+        };
+
 // Component Base
 
     class ComponentBase
@@ -42,7 +211,6 @@ namespace _detail {
         ComponentBase(ComponentBase&&) noexcept = default;
     public:
         virtual ~ComponentBase() = 0;
-        virtual ::std::ostream& debugPrint(::std::ostream& out) const = 0;
         virtual ::std::unique_ptr<ComponentBase> clone() const = 0;
     };
 
@@ -61,12 +229,6 @@ namespace _detail {
         {
             static TID tid = nextTID();
             return tid;
-        }
-
-        virtual ::std::ostream& debugPrint(::std::ostream& out) const override
-        {
-            out << "[ No debug message for TID " << getTID() << ". ]";
-            return out;
         }
     };
 
@@ -89,20 +251,6 @@ namespace _detail {
         : public ComponentDat<Child>
     {};
 
-// Containers
-
-    template <typename T, typename H = ::std::hash<T>>
-    using Many = ::std::unordered_set<T, H>;
-
-    template <typename K, typename V, typename H = ::std::hash<K>>
-    using Table = ::std::unordered_map<K, V, H>;
-
-    template <typename K, typename V>
-    using SlowTable = ::std::map<K, V>;
-
-    template <typename T>
-    using Vec = ::std::vector<T>;
-
 // Types
 
     class Database;
@@ -118,8 +266,8 @@ namespace _detail {
         template <typename T>
         class Entity
         {
-            using Iter = typename Table<EID,EntityData<T>>::iterator;
             friend class _detail::Database;
+            using Iter = typename Table<EID,EntityData<T>>::iterator;
 
             Iter iter;
 
@@ -177,32 +325,18 @@ namespace _detail {
 // Query results
 
     template <typename... Ts>
-    using RElement = ::std::tuple<Entity, Ts*...>;
+    using RElement =
+        typename ToTuple<
+            typename TypeListCat<
+                TypeList<Entity>,
+                typename AddPointer<
+                    typename RemoveNot<Ts...>::type
+                    >::type
+                >::type
+            >::type;
 
     template <typename... Ts>
     using Result = ::std::vector<RElement<Ts...>>;
-
-// Quick Erasure
-
-    struct ErasureBase
-    {
-        virtual ~ErasureBase() = 0;
-    };
-
-    inline ErasureBase::~ErasureBase()
-    {}
-
-    template <typename T>
-    struct Erase
-        : ErasureBase
-    {
-        T t;
-
-        template <typename... Us>
-        Erase(Us&&... us)
-            : t(::std::forward<Us>(us)...)
-        {}
-    };
 
 // Main Database engine
 
@@ -220,111 +354,153 @@ namespace _detail {
 
         EID createEntityID()
         {
-            return uidGen.eid++;
+            return ++uidGen.eid;
         }
 
         CID createCID()
         {
-            return uidGen.cid++;
+            return ++uidGen.cid;
         }
-
-        template <int N = 2, typename T>
-        typename ::std::enable_if<
-            (N < ::std::tuple_size<T>::value) ,
-        bool>::type fill_inspect(T& ele) const
-        {
-            using PtrType = typename ::std::tuple_element<N, T>::type;
-            using Type = typename ::std::remove_pointer<PtrType>::type;
-
-            auto const& coms = ::std::get<0>(ele).iter->second.coms;
-
-            auto iter = coms.find(Type::getTID());
-
-            if (iter == coms.end())
-            {
-                return false;
-            }
-
-            ::std::get<N>(ele) = static_cast<PtrType>(iter->second->second.com.get());
-
-            return fill_inspect<N+1>(ele);
-        }
-
-        template <int N = 2, typename T>
-        typename ::std::enable_if<
-            (N >= ::std::tuple_size<T>::value) ,
-        bool>::type fill_inspect(T& ele) const
-        {
-            return true;
-        }
-
-        template <typename T, typename... Us>
-        Result<T, Us...> select_inspect() const
-        {
-            Result<T, Us...> rval;
-
-            auto iter = components.find(T::getTID());
-            if (iter == components.end())
-                return rval;
-
-            const ComponentTable& table = iter->second;
-
-            for (auto const& p : table.list)
-            {
-                const ComponentData& cd = p.second;
-                T* data = static_cast<T*>(cd.com.get());
-
-                RElement<T, Us...> ele;
-
-                ::std::get<0>(ele) = *cd.ent;
-                ::std::get<1>(ele) = data;
-
-                if (fill_inspect(ele))
-                {
-                    rval.emplace_back(::std::move(ele));
-                }
-            }
-
-            return rval;
-        }
-
-        template <int I, typename T, typename... Us>
-        static void fill_memo_vec(Vec<TID>& vt)
-        {
-            vt[I] = T::getTID();
-            return fill_memo_vec<I+1, Us...>(vt);
-        }
-
-        template <int I>
-        static void fill_memo_vec(Vec<TID>& vt)
-        {}
 
     // Helpers
 
-        template <int I = 0, typename... Ts>
-        static typename ::std::enable_if<
-            I < ::std::tuple_size<::std::tuple<Ts*...>>::value,
-        void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
-        {
-            using C = typename ::std::tuple_element<I, ::std::tuple<Ts...>>::type;
-            TID tid = C::getTID();
+        // fill_inspect
+            // Fills the tuple with components from N by inspecting the entity.
 
-            auto iter = etab.find(tid);
-            if (iter != etab.end())
+            template <typename U, int N = 2, typename T, int M = N-::std::tuple_size<T>::value>
+            typename ::std::enable_if<
+                (N < ::std::tuple_size<T>::value),
+            bool>::type fill_inspect(T& ele) const
             {
-                ::std::get<I>(tup) = static_cast<C*>(iter->second->second.com.get());
+                using PtrType = typename ::std::tuple_element<N, T>::type;
+                using Type = typename ::std::remove_pointer<PtrType>::type;
+
+                auto const& coms = ::std::get<0>(ele).iter->second.coms;
+                auto iter = coms.find(Type::getTID());
+
+                if (iter == coms.end())
+                    return false;
+
+                ::std::get<N>(ele) = static_cast<PtrType>(iter->second->second.com.get());
+
+                return fill_inspect<U, N+1>(ele);
             }
 
-            return fill_components<I+1>(tup, etab);
-        }
+            template <typename U, int N = 2, typename T, int M = N-::std::tuple_size<T>::value>
+            typename ::std::enable_if<
+                (N >= ::std::tuple_size<T>::value) and
+                (M <  ::std::tuple_size<U>::value),
+            bool>::type fill_inspect(T& ele) const
+            {
+                using PtrType = typename ::std::tuple_element<M, U>::type;
+                using Type = typename ::std::remove_pointer<PtrType>::type;
 
-        template <int I = 0, typename... Ts>
-        static typename ::std::enable_if<
-            I >= ::std::tuple_size<::std::tuple<Ts*...>>::value,
-        void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
-        {}
+                auto const& coms = ::std::get<0>(ele).iter->second.coms;
+                auto iter = coms.find(Type::getTID());
+
+                if (iter != coms.end())
+                    return false;
+
+                return fill_inspect<U, N+1>(ele);
+            }
+
+            template <typename U, int N = 2, typename T, int M = N-::std::tuple_size<T>::value>
+            typename ::std::enable_if<
+                (N >= ::std::tuple_size<T>::value) and
+                (M >= ::std::tuple_size<U>::value),
+            bool>::type fill_inspect(T& ele) const
+            {
+                return true;
+            }
+
+        // select_inspect
+            // Gathers all entities containing the first component, forwards to fill_inspect.
+
+            template <typename T, typename... Us>
+            Result<T, Us...> select_inspect() const
+            {
+            static_assert(not IsNot<T>::value, "First component must be positive!");
+
+                Result<T, Us...> rval;
+
+                auto iter = components.find(T::getTID());
+                if (iter == components.end())
+                    return rval;
+
+                const ComponentTable& table = iter->second;
+
+                for (auto const& p : table.list)
+                {
+                    const ComponentData& cd = p.second;
+                    T* data = static_cast<T*>(cd.com.get());
+
+                    RElement<T, Us...> ele;
+
+                    ::std::get<0>(ele) = *cd.ent;
+                    ::std::get<1>(ele) = data;
+
+                    if (fill_inspect<typename ToTuple<typename GetNots<Us...>::type>::type>(ele))
+                    {
+                        rval.emplace_back(::std::move(ele));
+                    }
+                }
+
+                return rval;
+            }
+
+        // fill_memo_vec
+
+            template <int, typename...>
+            struct fill_memo_vec;
+
+            template <int I, typename T, typename... Us>
+            struct fill_memo_vec<I, T, Us...>
+            {
+                static void func(Vec<TID>& vt)
+                {
+                    vt.push_back(T::getTID());
+                    return fill_memo_vec<I+1, Us...>::func(vt);
+                }
+            };
+
+            template <int I>
+            struct fill_memo_vec<I>
+            {
+                static void func(Vec<TID>& vt)
+                {}
+            };
+
+        // fill_components
+
+            template <int I = 0, typename... Ts>
+            static typename ::std::enable_if<
+                I < Count<Ts...>::value,
+            void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
+            {
+                using C = typename ::std::tuple_element<I, ::std::tuple<Ts...>>::type;
+                TID tid = C::getTID();
+
+                auto iter = etab.find(tid);
+                if (iter != etab.end())
+                {
+                    ::std::get<I>(tup) = static_cast<C*>(iter->second->second.com.get());
+                }
+
+                return fill_components<I+1>(tup, etab);
+            }
+
+            template <int I = 0, typename... Ts>
+            static typename ::std::enable_if<
+                I >= Count<Ts...>::value,
+            void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
+            {}
 
     public:
+
+        enum class Selector
+        {
+            INSPECT
+        };
 
         template <typename... Ts>
         static ::std::tuple<Ts*...> getComponents(Entity ent)
@@ -335,11 +511,6 @@ namespace _detail {
 
             return rv;
         }
-
-        enum class Selector
-        {
-            INSPECT
-        };
 
         Entity newEntity()
         {
@@ -439,8 +610,11 @@ namespace _detail {
         template <typename... Ts>
         Result<Ts...> const& getEntities(const Selector method = Selector::INSPECT)
         {
-            Vec<TID> vt (::std::tuple_size<::std::tuple<Ts...>>::value);
-            fill_memo_vec<0, Ts...>(vt);
+            Vec<TID> vt;
+
+            vt.reserve(Count<Ts...>::value);
+            fill_memo_vec<0, Ts...>::func(vt);
+            ::std::stable_partition(::std::begin(vt), ::std::begin(vt), [](TID tid){return (tid>0);});
 
             auto iter = memos.find(vt);
             if (iter != memos.end())
@@ -468,13 +642,6 @@ namespace _detail {
         {
             return entities.size();
         }
-
-        ::std::ostream& debugPrint(::std::ostream& out) const
-        {
-            out << "Ginseng::Database::debugPrint() unimplemented!" << ::std::endl;
-
-            return out;
-        }
     };
 
 } // namespace _detail
@@ -486,6 +653,9 @@ namespace _detail {
 
     using Entity   = _detail::Entity;
     using Database = _detail::Database;
+
+    template <typename T>
+    using Not = _detail::Not<T>;
 
 // Public interface
 
