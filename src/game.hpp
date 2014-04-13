@@ -10,13 +10,13 @@
 #include "resourcepool.hpp"
 #include "spritedata.hpp"
 #include "rect.hpp"
+#include "smoothcamera.hpp"
 
 #include <random>
 
 class Game
 	: public Inugami::Core
 {
-
     // Configuration
 
         double tileWidth = 16.0;
@@ -26,6 +26,8 @@ class Game
             double width;
             double height;
         } min_view;
+
+        SmoothCamera smoothcam;
 
     // Resources
 

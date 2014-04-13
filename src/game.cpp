@@ -35,6 +35,8 @@ using namespace Component;
         min_view.width = (params.width)/4.0;
         min_view.height = (params.height)/4.0;
 
+        smoothcam = SmoothCamera(10);
+
     // Resources
 
         loadTextures();
@@ -58,7 +60,7 @@ using namespace Component;
 
             auto& solid = entities.newComponent<Solid>(ent);
             solid.width = 8;
-            solid.height = 8;
+            solid.height = 7;
 
             auto& ai = entities.newComponent<PlayerAI>(ent);
             ai.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
@@ -265,6 +267,12 @@ using namespace Component;
             return rv;
         };
 
+        for (auto& ent : entities.getEntities<Velocity,Solid>())
+        {
+            auto& vel = *get<1>(ent);
+            vel.vy -= 0.5;
+        }
+
         for (auto& ent : entities.getEntities<Position,Velocity,Solid>())
         {
             auto& eid   =  get<0>(ent);
@@ -273,11 +281,11 @@ using namespace Component;
             auto& solid = *get<3>(ent);
 
             auto linearCollide = [&](double Position::*d,
-                                     double Velocity::*vd,
+                                     double Velocity::*v,
                                      double Rect::*lower,
                                      double Rect::*upper)
             {
-                bool hit = false;
+                int hit = 0;
                 auto aabb = getRect(pos, solid);
                 for (auto& other : entities.getEntities<Position,Solid>())
                 {
@@ -295,27 +303,40 @@ using namespace Component;
                     and aabb.left < aabb2.right)
                     {
                         double overlap;
-                        if (vel.*vd > 0.0)
+                        if (vel.*v > 0.0)
                             overlap = aabb2.*lower-aabb.*upper;
                         else
                             overlap = aabb2.*upper-aabb.*lower;
                         pos.*d += overlap;
                         aabb = getRect(pos, solid);
-                        hit = true;
+                        hit = (overlap>0?-1:1);
                     }
                 }
-                if (hit)
-                    vel.*vd = 0.0;
+                if (hit != 0)
+                    vel.*v = 0.0;
+                return hit;
             };
 
             pos.x += vel.vx;
-            linearCollide(&Position::x, &Velocity::vx, &Rect::left, &Rect::right);
+            int xhit = linearCollide(&Position::x, &Velocity::vx, &Rect::left, &Rect::right);
 
             pos.y += vel.vy;
-            linearCollide(&Position::y, &Velocity::vy, &Rect::bottom, &Rect::top);
+            int yhit = linearCollide(&Position::y, &Velocity::vy, &Rect::bottom, &Rect::top);
 
-            vel.vx *= 1.0-vel.friction;
-            vel.vy *= 1.0-vel.friction;
+            {
+                AI* ai;
+                tie(ai) = Ginseng::getComponents<AI>(eid);
+
+                if (ai)
+                {
+                    ai->senses.onGround = (yhit<0);
+                }
+            }
+
+            if (yhit != 0)
+                vel.vx = 0;
+            else
+                vel.vx *= 1.0-vel.friction;
         }
     }
 
@@ -391,9 +412,14 @@ using namespace Component;
                 camloc.h = camloc.w/trat;
             }
 
-            double hw = camloc.w/2.0;
-            double hh = camloc.h/2.0;
-            cam.ortho(camloc.cx-hw, camloc.cx+hw, camloc.cy-hh, camloc.cy+hh, -10, 10);
+            smoothcam.push(camloc.cx, camloc.cy, camloc.w, camloc.h);
+            auto scam = smoothcam.get();
+            scam.x = int(scam.x*8.0)/8.0;
+            scam.y = int(scam.y*8.0)/8.0;
+
+            double hw = scam.w/2.0;
+            double hh = scam.h/2.0;
+            cam.ortho(scam.x-hw, scam.x+hw, scam.y-hh, scam.y+hh, -10, 10);
         }
         applyCam(cam);
     }
@@ -426,7 +452,7 @@ using namespace Component;
             auto& pos = *get<1>(ent);
             auto& spr = *get<2>(ent);
 
-            mat.translate(pos.x, pos.y);
+            mat.translate(int(pos.x), int(pos.y));
             modelMatrix(mat);
 
             getDrawfunc(spr)();

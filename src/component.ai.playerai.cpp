@@ -15,8 +15,8 @@ void PlayerAI::proc(Ginseng::Entity ent)
     if (inputs[LEFT]())  vel.vx -= 1;
     if (inputs[RIGHT]()) vel.vx += 1;
 
-    if (inputs[UP]())    vel.vy += 1;
-    if (inputs[DOWN]())  vel.vy -= 1;
+    if (inputs[UP]() and senses.onGround) vel.vy += 5;
+    //if (inputs[DOWN]())  vel.vy -= 1;
 }
 
 void PlayerAI::setInput(Input i, std::function<bool()> func)

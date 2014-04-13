@@ -10,6 +10,11 @@ class AI
 {
 public:
     virtual void proc(Ginseng::Entity ent) = 0;
+
+    struct
+    {
+        bool onGround;
+    } senses;
 };
 
 template <typename Child>

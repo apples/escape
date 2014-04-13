@@ -57,7 +57,7 @@ void Spritesheet::draw(int r, int c) const
 
 void Spritesheet::generateMeshes(int tw, int th, float cx, float cy)
 {
-    constexpr float E = 0.0f; // std::numeric_limits<float>::epsilon() * 1.0e4;
+    constexpr float E = std::numeric_limits<float>::epsilon() * 1.0e4;
 
     tilesX = tex.getWidth()/tw;
     tilesY = tex.getHeight()/th;
