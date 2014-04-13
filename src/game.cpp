@@ -77,12 +77,14 @@ using namespace Component;
 
         Level lvl;
 
+        #if 0
         vector<int> walls;
         walls.resize(lvl.width*lvl.height);
 
         auto wallAt = [&](int r, int c)-> int& {
             return walls[r*lvl.width+c];
         };
+        #endif
 
         for (int i=0; i<lvl.height; ++i)
         {
@@ -99,8 +101,12 @@ using namespace Component;
 
                 if (lvl.at(0,i,j) == 1)
                 {
-                    wallAt(i, j) = 1;
+                    //wallAt(i, j) = 1;
                     sprite.anim = "wall";
+
+                    auto& solid = entities.newComponent<Solid>(tile);
+                    solid.width = 8;
+                    solid.height = 8;
                 }
                 else
                 {
@@ -109,6 +115,7 @@ using namespace Component;
             }
         }
 
+        #if 0
         for (int i=0; i<lvl.height; ++i)
         {
             for (int j=0; j<lvl.width; ++j)
@@ -152,6 +159,7 @@ using namespace Component;
                 solid.height = h;
             }
         }
+        #endif
     }
 
 // Resource and Configuration Functions
@@ -247,16 +255,67 @@ using namespace Component;
 
     void Game::runPhysics()
     {
-        for (auto& ent : entities.getEntities<Position,Velocity>())
+        auto getRect = [](Position const& pos, Solid const& solid)
         {
-            auto& pos = *get<1>(ent);
-            auto& vel = *get<2>(ent);
+            Rect rv;
+            rv.left   = pos.x - solid.width/2.0;
+            rv.right  = pos.x + solid.width/2.0;
+            rv.bottom = pos.y - solid.height/2.0;
+            rv.top    = pos.y + solid.height/2.0;
+            return rv;
+        };
+
+        for (auto& ent : entities.getEntities<Position,Velocity,Solid>())
+        {
+            auto& eid   =  get<0>(ent);
+            auto& pos   = *get<1>(ent);
+            auto& vel   = *get<2>(ent);
+            auto& solid = *get<3>(ent);
+
+            auto linearCollide = [&](double Position::*d,
+                                     double Velocity::*vd,
+                                     double Rect::*lower,
+                                     double Rect::*upper)
+            {
+                bool hit = false;
+                auto aabb = getRect(pos, solid);
+                for (auto& other : entities.getEntities<Position,Solid>())
+                {
+                    auto& eid2   =  get<0>(other);
+                    auto& pos2   = *get<1>(other);
+                    auto& solid2 = *get<2>(other);
+
+                    if (eid == eid2) continue;
+
+                    auto aabb2 = getRect(pos2, solid2);
+
+                    if (aabb.top > aabb2.bottom
+                    and aabb.bottom < aabb2.top
+                    and aabb.right > aabb2.left
+                    and aabb.left < aabb2.right)
+                    {
+                        double overlap;
+                        if (vel.*vd > 0.0)
+                            overlap = aabb2.*lower-aabb.*upper;
+                        else
+                            overlap = aabb2.*upper-aabb.*lower;
+                        pos.*d += overlap;
+                        aabb = getRect(pos, solid);
+                        hit = true;
+                    }
+                }
+                if (hit)
+                    vel.*vd = 0.0;
+            };
 
             pos.x += vel.vx;
-            pos.y += vel.vy;
+            linearCollide(&Position::x, &Velocity::vx, &Rect::left, &Rect::right);
 
-            vel.vx -= vel.vx*vel.friction;
-            vel.vy -= vel.vy*vel.friction;
+            pos.y += vel.vy;
+            linearCollide(&Position::y, &Velocity::vy, &Rect::bottom, &Rect::top);
+
+            vel.vx *= 1.0-vel.friction;
+            vel.vy *= 1.0-vel.friction;
         }
     }
 
@@ -343,16 +402,8 @@ using namespace Component;
     {
         Transform mat;
 
-        for (auto& ent : entities.getEntities<Position, Sprite>())
+        auto getDrawfunc = [&](Sprite& spr)
         {
-            auto _ = mat.scope_push();
-
-            auto& pos = *get<1>(ent);
-            auto& spr = *get<2>(ent);
-
-            mat.translate(pos.x, pos.y);
-            modelMatrix(mat);
-
             auto const& sprdata = sprites.get(spr.name);
             auto const& anim = sprdata.anims.get(spr.anim);
 
@@ -365,6 +416,39 @@ using namespace Component;
 
             auto const& frame = anim[spr.anim_frame];
 
+            return [&]{sprdata.sheet.draw(frame.r, frame.c);};
+        };
+
+        for (auto& ent : entities.getEntities<Position, Sprite>())
+        {
+            auto _ = mat.scope_push();
+
+            auto& pos = *get<1>(ent);
+            auto& spr = *get<2>(ent);
+
+            mat.translate(pos.x, pos.y);
+            modelMatrix(mat);
+
+            getDrawfunc(spr)();
+        }
+
+        #if 0
+        for (auto& ent : entities.getEntities<Position, Solid>())
+        {
+            auto _ = mat.scope_push();
+
+            auto& pos = *get<1>(ent);
+            auto& solid = *get<2>(ent);
+
+            mat.translate(pos.x, pos.y);
+            mat.scale(solid.width/8.0, solid.height/8.0);
+            modelMatrix(mat);
+
+            auto const& sprdata = sprites.get("redx");
+            auto const& anim = sprdata.anims.get("redx");
+            auto const& frame = anim[0];
+
             sprdata.sheet.draw(frame.r, frame.c);
         }
+        #endif
     }

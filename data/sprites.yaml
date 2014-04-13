@@ -24,3 +24,12 @@ tile:
             - r: 1
               c: 1
               dur: 10
+redx:
+    texture: enemies
+    width: 8
+    height: 8
+    anims:
+        redx:
+            - r: 7
+              c: 7
+              dur: 10
