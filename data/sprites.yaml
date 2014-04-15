@@ -1,8 +1,8 @@
 ---
 player:
     texture: enemies
-    width: 8
-    height: 8
+    width: 32
+    height: 32
     anims:
         idle:
             - r: 0
@@ -11,19 +11,26 @@ player:
             - r: 0
               c: 1
               dur: 10
-tile: 
-    texture: enemies
-    width: 8
-    height: 8
+tile:
+    texture: tiles
+    width: 32
+    height: 32
     anims:
-        wall:
+        background:
+            - r: 1
+              c: 0
+              dur: 10
+        bricks:
             - r: 0
               c: 0
               dur: 10
-        floor:
-            - r: 1
-              c: 1
-              dur: 10
+        firepot:
+            - r: 0
+              c: 3
+              dur: 5
+            - r: 0
+              c: 4
+              dur: 5
 redx:
     texture: enemies
     width: 8

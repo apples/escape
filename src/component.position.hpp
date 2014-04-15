@@ -8,8 +8,9 @@ namespace Component {
 struct Position
     : Ginseng::Component<Position>
 {
-    double x;
-    double y;
+    double x = 0;
+    double y = 0;
+    double z = 0;
 };
 
 } // namespace Component

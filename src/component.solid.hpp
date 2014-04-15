@@ -3,13 +3,14 @@
 
 #include <ginseng/ginseng.hpp>
 
+#include "rect.hpp"
+
 namespace Component {
 
 struct Solid
     : Ginseng::Component<Solid>
 {
-    double width;
-    double height;
+    Rect rect;
 };
 
 } // namespace Component

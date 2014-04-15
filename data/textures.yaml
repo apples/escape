@@ -1,3 +1,7 @@
 ---
 enemies:
     file: enemies.png
+tiles:
+    file: tiles.png
+font:
+    file: font.png

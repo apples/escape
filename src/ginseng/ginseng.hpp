@@ -46,14 +46,19 @@ namespace _detail {
     struct TypeList
     {};
 
-    template <typename T, typename U>
-    struct TypeListCat;
+    // TypeListCat
 
-    template <typename... Ts, typename... Us>
-    struct TypeListCat<TypeList<Ts...>, TypeList<Us...>>
-    {
-        using type = TypeList<Ts..., Us...>;
-    };
+        template <typename T, typename U>
+        struct TypeListCat;
+
+        template <typename... Ts, typename... Us>
+        struct TypeListCat<TypeList<Ts...>, TypeList<Us...>>
+        {
+            using type = TypeList<Ts..., Us...>;
+        };
+
+        template <typename... Ts>
+        using TypeListCat_t = typename TypeListCat<Ts...>::type;
 
     template <typename... Ts>
     struct Count
@@ -83,7 +88,7 @@ namespace _detail {
         template <typename T, typename... Us>
         struct RemoveNot<T, Us...>
         {
-            using type = typename TypeListCat<TypeList<T>, typename RemoveNot<Us...>::type>::type;
+            using type = TypeListCat_t<TypeList<T>, typename RemoveNot<Us...>::type>;
         };
 
         template <typename T, typename... Us>
@@ -97,6 +102,9 @@ namespace _detail {
         {
             using type = TypeList<>;
         };
+
+        template <typename... Ts>
+        using RemoveNot_t = typename RemoveNot<Ts...>::type;
 
     // GetNots
 
@@ -132,6 +140,9 @@ namespace _detail {
             using type = Tup<Ts*...>;
         };
 
+        template <typename... Ts>
+        using AddPointer_t = typename AddPointer<Ts...>::type;
+
     // ToTuple
 
         template <typename...>
@@ -142,6 +153,9 @@ namespace _detail {
         {
             using type = ::std::tuple<Ts...>;
         };
+
+        template <typename... Ts>
+        using ToTuple_t = typename ToTuple<Ts...>::type;
 
     // Filters
 
@@ -326,14 +340,14 @@ namespace _detail {
 
     template <typename... Ts>
     using RElement =
-        typename ToTuple<
-            typename TypeListCat<
+        ToTuple_t
+        <
+            TypeListCat_t
+            <
                 TypeList<Entity>,
-                typename AddPointer<
-                    typename RemoveNot<Ts...>::type
-                    >::type
-                >::type
-            >::type;
+                AddPointer_t< RemoveNot_t<Ts...> >
+            >
+        >;
 
     template <typename... Ts>
     using Result = ::std::vector<RElement<Ts...>>;
@@ -610,6 +624,11 @@ namespace _detail {
         template <typename... Ts>
         Result<Ts...> const& getEntities(const Selector method = Selector::INSPECT)
         {
+            auto unerase = [](decltype(memos.begin()) iter)-> Result<Ts...>&
+            {
+                return static_cast<Erase<Result<Ts...>>*>(iter->second.get())->t;
+            };
+
             Vec<TID> vt;
 
             vt.reserve(Count<Ts...>::value);
@@ -618,7 +637,7 @@ namespace _detail {
 
             auto iter = memos.find(vt);
             if (iter != memos.end())
-                return static_cast<Erase<Result<Ts...>> const*>(iter->second.get())->t;
+                return unerase(iter);
 
             Result<Ts...> rv;
             ::std::unique_ptr<ErasureBase> up;
@@ -635,7 +654,7 @@ namespace _detail {
                     throw; //TODO
             }
 
-            return static_cast<Erase<Result<Ts...>> const*>(iter->second.get())->t;
+            return unerase(iter);
         }
 
         decltype(entities.size()) numEntities() const

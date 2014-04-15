@@ -19,7 +19,7 @@ class Game
 {
     // Configuration
 
-        double tileWidth = 16.0;
+        int tileWidth = 32;
 
         struct
         {

@@ -243,6 +243,8 @@
 		<Unit filename="src/resourcepool.hpp">
 			<Option virtualFolder="Meta/" />
 		</Unit>
+		<Unit filename="src/smoothcamera.cpp" />
+		<Unit filename="src/smoothcamera.hpp" />
 		<Unit filename="src/spritedata.cpp">
 			<Option virtualFolder="Game/" />
 		</Unit>

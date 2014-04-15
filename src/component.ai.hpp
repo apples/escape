@@ -14,6 +14,7 @@ public:
     struct
     {
         bool onGround;
+        int wallHit;
     } senses;
 };
 

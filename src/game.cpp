@@ -12,6 +12,8 @@
 #include <random>
 #include <string>
 #include <limits>
+#include <functional>
+#include <vector>
 
 #include <yaml-cpp/yaml.h>
 
@@ -32,8 +34,8 @@ using namespace Component;
         addCallback([&]{ tick(); draw(); }, 60.0);
         setWindowTitle("Escape", true);
 
-        min_view.width = (params.width)/4.0;
-        min_view.height = (params.height)/4.0;
+        min_view.width = (params.width)/2.0;
+        min_view.height = (params.height)/2.0;
 
         smoothcam = SmoothCamera(10);
 
@@ -44,36 +46,56 @@ using namespace Component;
 
     // Entities
 
-        {
-            auto ent = entities.newEntity();
-            playerEID = ent;
+        // Player
 
-            auto& sprite = entities.newComponent<Sprite>(ent);
-            sprite.name = "player";
-            sprite.anim = "idle";
+            {
+                auto ent = entities.newEntity();
+                playerEID = ent;
 
-            auto& pos = entities.newComponent<Position>(ent);
-            pos.x = 0;
-            pos.y = 0;
+                auto& sprite = entities.newComponent<Sprite>(ent);
+                sprite.name = "player";
+                sprite.anim = "idle";
 
-            auto& vel = entities.newComponent<Velocity>(ent);
+                auto& pos = entities.newComponent<Position>(ent);
+                pos.x = 0;
+                pos.y = 0;
 
-            auto& solid = entities.newComponent<Solid>(ent);
-            solid.width = 8;
-            solid.height = 7;
+                auto& vel = entities.newComponent<Velocity>(ent);
 
-            auto& ai = entities.newComponent<PlayerAI>(ent);
-            ai.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
-            ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
-            ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
-            ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
+                auto& solid = entities.newComponent<Solid>(ent);
+                solid.rect.left = -14;
+                solid.rect.right = solid.rect.left + 28;
+                solid.rect.bottom = -16;
+                solid.rect.top = solid.rect.bottom + 28;
 
-            auto& cam = entities.newComponent<CamLook>(ent);
-            cam.aabb.left   = -4;
-            cam.aabb.right  =  4;
-            cam.aabb.bottom = -4;
-            cam.aabb.top    =  4;
-        }
+                auto& ai = entities.newComponent<PlayerAI>(ent);
+                ai.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
+                ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
+                ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
+                ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
+
+                auto& cam = entities.newComponent<CamLook>(ent);
+                cam.aabb.left   = -4;
+                cam.aabb.right  =  4;
+                cam.aabb.bottom = -4;
+                cam.aabb.top    =  4;
+            }
+
+        // Fire Pot
+
+            {
+                auto ent = entities.newEntity();
+                playerEID = ent;
+
+                auto& sprite = entities.newComponent<Sprite>(ent);
+                sprite.name = "tile";
+                sprite.anim = "firepot";
+
+                auto& pos = entities.newComponent<Position>(ent);
+                pos.x = 3*32+16;
+                pos.y = 2*32+16;
+                pos.z = -0.5;
+            }
 
     // Load Level
 
@@ -95,8 +117,8 @@ using namespace Component;
                 auto tile = entities.newEntity();
 
                 auto& pos = entities.newComponent<Position>(tile);
-                pos.y = i*8+4;
-                pos.x = j*8+4;
+                pos.y = i*tileWidth+tileWidth/2;
+                pos.x = j*tileWidth+tileWidth/2;
 
                 auto& sprite = entities.newComponent<Sprite>(tile);
                 sprite.name = "tile";
@@ -104,15 +126,19 @@ using namespace Component;
                 if (lvl.at(0,i,j) == 1)
                 {
                     //wallAt(i, j) = 1;
-                    sprite.anim = "wall";
+                    sprite.anim = "bricks";
 
                     auto& solid = entities.newComponent<Solid>(tile);
-                    solid.width = 8;
-                    solid.height = 8;
+                    solid.rect.left = -tileWidth/2;
+                    solid.rect.right = tileWidth/2;
+                    solid.rect.bottom = -tileWidth/2;
+                    solid.rect.top = tileWidth/2;
                 }
                 else
                 {
-                    sprite.anim = "floor";
+                    sprite.anim = "background";
+
+                    pos.z = -1;
                 }
             }
         }
@@ -260,10 +286,10 @@ using namespace Component;
         auto getRect = [](Position const& pos, Solid const& solid)
         {
             Rect rv;
-            rv.left   = pos.x - solid.width/2.0;
-            rv.right  = pos.x + solid.width/2.0;
-            rv.bottom = pos.y - solid.height/2.0;
-            rv.top    = pos.y + solid.height/2.0;
+            rv.left   = pos.x + solid.rect.left;
+            rv.right  = pos.x + solid.rect.right;
+            rv.bottom = pos.y + solid.rect.bottom;
+            rv.top    = pos.y + solid.rect.top;
             return rv;
         };
 
@@ -287,6 +313,7 @@ using namespace Component;
             {
                 int hit = 0;
                 auto aabb = getRect(pos, solid);
+
                 for (auto& other : entities.getEntities<Position,Solid>())
                 {
                     auto& eid2   =  get<0>(other);
@@ -312,8 +339,10 @@ using namespace Component;
                         hit = (overlap>0?-1:1);
                     }
                 }
+
                 if (hit != 0)
                     vel.*v = 0.0;
+
                 return hit;
             };
 
@@ -330,6 +359,7 @@ using namespace Component;
                 if (ai)
                 {
                     ai->senses.onGround = (yhit<0);
+                    ai->senses.wallHit = xhit;
                 }
             }
 
@@ -355,6 +385,8 @@ using namespace Component;
     void Game::setupCamera()
     {
         Camera cam;
+        cam.depthTest = true;
+
         {
             Rect view;
             view.left = numeric_limits<decltype(view.left)>::max();
@@ -428,6 +460,20 @@ using namespace Component;
     {
         Transform mat;
 
+        auto const& ents = entities.getEntities<Position, Sprite>();
+        using Ent = decltype(&ents[0]);
+
+        struct DrawItem
+        {
+            Ent ent;
+            function<void()> draw;
+
+            DrawItem(Ent e, function<void()> f)
+                : ent(e)
+                , draw(move(f))
+            {}
+        };
+
         auto getDrawfunc = [&](Sprite& spr)
         {
             auto const& sprdata = sprites.get(spr.name);
@@ -436,7 +482,8 @@ using namespace Component;
             if (--spr.ticker <= 0)
             {
                 ++spr.anim_frame;
-                if (spr.anim_frame >= anim.size()) spr.anim_frame = 0;
+                if (spr.anim_frame >= anim.size())
+                    spr.anim_frame = 0;
                 spr.ticker = anim[spr.anim_frame].duration;
             }
 
@@ -445,18 +492,33 @@ using namespace Component;
             return [&]{sprdata.sheet.draw(frame.r, frame.c);};
         };
 
-        for (auto& ent : entities.getEntities<Position, Sprite>())
+        vector<DrawItem> items;
+
+        for (auto const& ent : ents)
         {
-            auto _ = mat.scope_push();
+            items.emplace_back(&ent, [&]
+            {
+                auto _ = mat.scope_push();
 
-            auto& pos = *get<1>(ent);
-            auto& spr = *get<2>(ent);
+                auto& pos = *get<1>(ent);
+                auto& spr = *get<2>(ent);
 
-            mat.translate(int(pos.x), int(pos.y));
-            modelMatrix(mat);
+                mat.translate(int(pos.x+spr.offset.x), int(pos.y+spr.offset.y), pos.z);
+                modelMatrix(mat);
 
-            getDrawfunc(spr)();
+                getDrawfunc(spr)();
+            });
         }
+
+        sort(begin(items), end(items), [](DrawItem const& a, DrawItem const& b)
+        {
+            auto& posa = *get<1>(*a.ent);
+            auto& posb = *get<1>(*b.ent);
+            return (tie(posa.z,posa.x,posa.y) < tie(posb.z,posb.x,posb.y));
+        });
+
+        for (auto const& item : items)
+            item.draw();
 
         #if 0
         for (auto& ent : entities.getEntities<Position, Solid>())

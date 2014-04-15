@@ -13,6 +13,13 @@ struct Sprite
     std::string anim;
     unsigned anim_frame = -1;
     int ticker = 0;
+
+    struct
+    {
+        double x = 0;
+        double y = 0;
+    }
+    offset;
 };
 
 } // namespace Component

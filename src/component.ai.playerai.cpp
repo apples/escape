@@ -12,10 +12,10 @@ void PlayerAI::proc(Ginseng::Entity ent)
     auto comps = Ginseng::getComponents<Velocity>(ent);
     auto& vel = *get<0>(comps);
 
-    if (inputs[LEFT]())  vel.vx -= 1;
-    if (inputs[RIGHT]()) vel.vx += 1;
+    if (inputs[LEFT]())  vel.vx -= 5;
+    if (inputs[RIGHT]()) vel.vx += 5;
 
-    if (inputs[UP]() and senses.onGround) vel.vy += 5;
+    if (inputs[UP]() and senses.onGround) vel.vy += 15;
     //if (inputs[DOWN]())  vel.vy -= 1;
 }
 
