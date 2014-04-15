@@ -15,6 +15,7 @@ public:
     {
         bool onGround;
         int wallHit;
+        std::vector<Ginseng::Entity> hits;
     } senses;
 };
 

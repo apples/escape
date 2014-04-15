@@ -75,10 +75,7 @@ using namespace Component;
                 ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
 
                 auto& cam = entities.newComponent<CamLook>(ent);
-                cam.aabb.left   = -4;
-                cam.aabb.right  =  4;
-                cam.aabb.bottom = -4;
-                cam.aabb.top    =  4;
+                cam.aabb = solid.rect;
             }
 
         // Fire Pot
@@ -100,15 +97,6 @@ using namespace Component;
     // Load Level
 
         Level lvl;
-
-        #if 0
-        vector<int> walls;
-        walls.resize(lvl.width*lvl.height);
-
-        auto wallAt = [&](int r, int c)-> int& {
-            return walls[r*lvl.width+c];
-        };
-        #endif
 
         for (int i=0; i<lvl.height; ++i)
         {
@@ -142,52 +130,6 @@ using namespace Component;
                 }
             }
         }
-
-        #if 0
-        for (int i=0; i<lvl.height; ++i)
-        {
-            for (int j=0; j<lvl.width; ++j)
-            {
-                for (int k=j+1; k<lvl.width and wallAt(i,k)!=0; ++k)
-                {
-                    ++wallAt(i,j);
-                    wallAt(i,k) = 0;
-                }
-                j += wallAt(i,j);
-            }
-        }
-
-        for (int i=0; i<lvl.width; ++i)
-        {
-            for (int j=0; j<lvl.height; ++j)
-            {
-                if (wallAt(i,j) == 0) continue;
-
-                double cx = i*8 + 4;
-                double cy = j*8 + 4;
-                double w = 8;
-                double h = 8;
-
-                for (int k=j+1; k<lvl.height and wallAt(i,k)==w; ++k)
-                {
-                    cy += 4;
-                    h += 8;
-                    wallAt(i,k) = 0;
-                    ++j;
-                }
-
-                auto wall = entities.newEntity();
-
-                auto& pos = entities.newComponent<Position>(wall);
-                pos.x = cx;
-                pos.y = cy;
-
-                auto& solid = entities.newComponent<Solid>(wall);
-                solid.width = w;
-                solid.height = h;
-            }
-        }
-        #endif
     }
 
 // Resource and Configuration Functions
@@ -208,6 +150,7 @@ using namespace Component;
             auto file = file_node.as<string>();
             auto smooth = (smooth_node? smooth_node.as<bool>() : false);
             auto clamp  = ( clamp_node?  clamp_node.as<bool>() : false);
+
             textures.create(name, Image::fromPNG("data/"+file), smooth, clamp);
         }
     }
@@ -306,6 +249,12 @@ using namespace Component;
             auto& vel   = *get<2>(ent);
             auto& solid = *get<3>(ent);
 
+            AI* ai;
+            tie(ai) = Ginseng::getComponents<AI>(eid);
+
+            if (ai)
+                ai->senses.hits.clear();
+
             auto linearCollide = [&](double Position::*d,
                                      double Velocity::*v,
                                      double Rect::*lower,
@@ -330,13 +279,18 @@ using namespace Component;
                     and aabb.left < aabb2.right)
                     {
                         double overlap;
+
                         if (vel.*v > 0.0)
                             overlap = aabb2.*lower-aabb.*upper;
                         else
                             overlap = aabb2.*upper-aabb.*lower;
+
                         pos.*d += overlap;
                         aabb = getRect(pos, solid);
                         hit = (overlap>0?-1:1);
+
+                        if (ai)
+                            ai->senses.hits.push_back(eid2);
                     }
                 }
 
@@ -352,20 +306,13 @@ using namespace Component;
             pos.y += vel.vy;
             int yhit = linearCollide(&Position::y, &Velocity::vy, &Rect::bottom, &Rect::top);
 
+            if (ai)
             {
-                AI* ai;
-                tie(ai) = Ginseng::getComponents<AI>(eid);
-
-                if (ai)
-                {
-                    ai->senses.onGround = (yhit<0);
-                    ai->senses.wallHit = xhit;
-                }
+                ai->senses.onGround = (yhit<0);
+                ai->senses.wallHit = xhit;
             }
 
             if (yhit != 0)
-                vel.vx = 0;
-            else
                 vel.vx *= 1.0-vel.friction;
         }
     }
@@ -453,6 +400,7 @@ using namespace Component;
             double hh = scam.h/2.0;
             cam.ortho(scam.x-hw, scam.x+hw, scam.y-hh, scam.y+hh, -10, 10);
         }
+
         applyCam(cam);
     }
 
@@ -528,8 +476,8 @@ using namespace Component;
             auto& pos = *get<1>(ent);
             auto& solid = *get<2>(ent);
 
-            mat.translate(pos.x, pos.y);
-            mat.scale(solid.width/8.0, solid.height/8.0);
+            mat.translate(pos.x, pos.y, pos.x+1);
+            //mat.scale(solid.width/8.0, solid.height/8.0);
             modelMatrix(mat);
 
             auto const& sprdata = sprites.get("redx");
