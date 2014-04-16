@@ -5,8 +5,8 @@ using namespace std;
 
 Level::Level()
 {
-    width = 32;
-    height = 32;
+    width = 75;
+    height = 75;
     for (auto&& l : data) l.resize(width*height);
 
     mt19937 rng(2014);

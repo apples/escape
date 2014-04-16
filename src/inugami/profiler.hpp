@@ -44,6 +44,14 @@ namespace Inugami {
  */
 class Profiler
 {
+    class ScopedProfile
+    {
+        Profiler& profiler;
+    public:
+        ScopedProfile(Profiler& p);
+        ~ScopedProfile();
+    };
+
 public:
 
     /*! @brief Profile data.
@@ -90,6 +98,8 @@ public:
      */
     void stop();
 
+    ScopedProfile scope(const std::string& in);
+
     /*! @brief Gets the top-level profiles.
      *
      *  @return Top-level profiles.
@@ -99,46 +109,6 @@ public:
 private:
     PMap profiles;
     std::vector<Profile::Ptr> current;
-};
-
-/*! @brief Automatic profile manager.
- *
- *  When created, this object will start the Profiler::Profile that's
- *  specified. When destroyed, the Profiler::Profile will be stopped.
- */
-class ScopedProfile final
-{
-public:
-    ScopedProfile() = delete;
-    ScopedProfile(const ScopedProfile&) = delete;
-
-    /*! @brief Reference constructor.
-     *
-     *  Starts the named Profiler::Profile in the given Profiler.
-     *
-     *  @param in Profiler.
-     *  @param str Name of Profiler::Profile.
-     */
-    ScopedProfile(Profiler& in, const std::string& str);
-
-    /*! @brief Pointer constructor.
-     *
-     *  Starts the named Profiler::Profile in the given Profiler.
-     *
-     *  @param in Profiler.
-     *  @param str Name of Profiler::Profile.
-     */
-    ScopedProfile(Profiler* in, const std::string& str);
-
-    /*! @brief Destructor.
-     *
-     *  The managed Profiler::Profile will be stopped.
-     */
-    ~ScopedProfile();
-
-private:
-    Profiler& profiler;
-    std::string name;
 };
 
 } // namespace Inugami

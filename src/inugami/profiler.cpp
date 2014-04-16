@@ -90,21 +90,17 @@ const Profiler::PMap& Profiler::getAll() const
     return profiles;
 }
 
-ScopedProfile::ScopedProfile(Profiler& in, const std::string& str)
-    : profiler(in)
-    , name(str)
+Profiler::ScopedProfile Profiler::scope(const std::string& in)
 {
-    profiler.start(name);
+    start(in);
+    return ScopedProfile(*this);
 }
 
-ScopedProfile::ScopedProfile(Profiler* in, const std::string& str)
-    : profiler(*in)
-    , name(str)
-{
-    profiler.start(name);
-}
+Profiler::ScopedProfile::ScopedProfile(Profiler& p)
+    : profiler(p)
+{}
 
-ScopedProfile::~ScopedProfile()
+Profiler::ScopedProfile::~ScopedProfile()
 {
     profiler.stop();
 }

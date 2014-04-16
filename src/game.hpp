@@ -60,8 +60,8 @@ public:
 
         void draw();
 
-        void setupCamera();
-        void drawSprites();
+        Rect setupCamera();
+        void drawSprites(Rect view);
 };
 
 #endif // GAME_HPP

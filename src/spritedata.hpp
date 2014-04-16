@@ -26,6 +26,9 @@ public:
 
     Inugami::Spritesheet sheet;
 
+    int width;
+    int height;
+
     ResourcePool<std::vector<Frame>> anims;
 };
 

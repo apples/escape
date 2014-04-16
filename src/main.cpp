@@ -48,7 +48,7 @@ void errorMessage(const char*);
 int main(int argc, char* argv[])
 {
     profiler = new Profiler();
-    ScopedProfile prof(profiler, "Main");
+    auto prof = profiler->scope("Main");
 
     std::ofstream logfile("log.txt");
     logger = new Logger<>(logfile);

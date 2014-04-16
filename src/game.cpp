@@ -27,6 +27,8 @@ using namespace Component;
         : Core(params)
         , rng(nd_rand())
     {
+        auto _ = profiler->scope("Game::<constructor>()");
+
         params = getParams();
 
     // Configuration
@@ -78,8 +80,9 @@ using namespace Component;
                 cam.aabb = solid.rect;
             }
 
-        // Fire Pot
+        // Fire Pots
 
+            for (int i=0; i<100; ++i)
             {
                 auto ent = entities.newEntity();
                 playerEID = ent;
@@ -89,8 +92,8 @@ using namespace Component;
                 sprite.anim = "firepot";
 
                 auto& pos = entities.newComponent<Position>(ent);
-                pos.x = 3*32+16;
-                pos.y = 2*32+16;
+                pos.x = (rng()%149+1)*16;
+                pos.y = (rng()%149+1)*16;
                 pos.z = -0.5;
             }
 
@@ -113,7 +116,6 @@ using namespace Component;
 
                 if (lvl.at(0,i,j) == 1)
                 {
-                    //wallAt(i, j) = 1;
                     sprite.anim = "bricks";
 
                     auto& solid = entities.newComponent<Solid>(tile);
@@ -172,6 +174,8 @@ using namespace Component;
             auto const& anims = spr.second["anims"];
 
             data.sheet = Spritesheet(textures.get(texname), width, height);
+            data.width = width;
+            data.height = height;
 
             for (auto const& anim : anims)
             {
@@ -200,6 +204,8 @@ using namespace Component;
 
     void Game::tick()
     {
+        auto _ = profiler->scope("Game::tick()");
+
         iface->poll();
 
         auto ESC = iface->key(Interface::ivkFunc(0));
@@ -216,6 +222,8 @@ using namespace Component;
 
     void Game::procAIs()
     {
+        auto _ = profiler->scope("Game::procAIs()");
+
         for (auto& ent : entities.getEntities<AI>())
         {
             auto& e = get<0>(ent);
@@ -226,6 +234,8 @@ using namespace Component;
 
     void Game::runPhysics()
     {
+        auto _ = profiler->scope("Game::runPhysics()");
+
         auto getRect = [](Position const& pos, Solid const& solid)
         {
             Rect rv;
@@ -238,12 +248,16 @@ using namespace Component;
 
         for (auto& ent : entities.getEntities<Velocity,Solid>())
         {
+            auto _ = profiler->scope("Gravity");
+
             auto& vel = *get<1>(ent);
             vel.vy -= 0.5;
         }
 
         for (auto& ent : entities.getEntities<Position,Velocity,Solid>())
         {
+            auto _ = profiler->scope("Collision");
+
             auto& eid   =  get<0>(ent);
             auto& pos   = *get<1>(ent);
             auto& vel   = *get<2>(ent);
@@ -321,18 +335,25 @@ using namespace Component;
 
     void Game::draw()
     {
+        auto _ = profiler->scope("Game::draw()");
+
         beginFrame();
 
-        setupCamera();
-        drawSprites();
+        Rect view = setupCamera();
+
+        drawSprites(view);
 
         endFrame();
     }
 
-    void Game::setupCamera()
+    Rect Game::setupCamera()
     {
+        auto _ = profiler->scope("Game::setupCamera()");
+
         Camera cam;
         cam.depthTest = true;
+
+        Rect rv;
 
         {
             Rect view;
@@ -398,14 +419,23 @@ using namespace Component;
 
             double hw = scam.w/2.0;
             double hh = scam.h/2.0;
-            cam.ortho(scam.x-hw, scam.x+hw, scam.y-hh, scam.y+hh, -10, 10);
+            rv.left = scam.x-hw;
+            rv.right = scam.x+hw;
+            rv.bottom = scam.y-hh;
+            rv.top = scam.y+hh;
+
+            cam.ortho(rv.left, rv.right, rv.bottom, rv.top, -10, 10);
         }
 
         applyCam(cam);
+
+        return rv;
     }
 
-    void Game::drawSprites()
+    void Game::drawSprites(Rect view)
     {
+        auto _ = profiler->scope("Game::drawSprites()");
+
         Transform mat;
 
         auto const& ents = entities.getEntities<Position, Sprite>();
@@ -422,40 +452,48 @@ using namespace Component;
             {}
         };
 
-        auto getDrawfunc = [&](Sprite& spr)
-        {
-            auto const& sprdata = sprites.get(spr.name);
-            auto const& anim = sprdata.anims.get(spr.anim);
-
-            if (--spr.ticker <= 0)
-            {
-                ++spr.anim_frame;
-                if (spr.anim_frame >= anim.size())
-                    spr.anim_frame = 0;
-                spr.ticker = anim[spr.anim_frame].duration;
-            }
-
-            auto const& frame = anim[spr.anim_frame];
-
-            return [&]{sprdata.sheet.draw(frame.r, frame.c);};
-        };
-
         vector<DrawItem> items;
 
         for (auto const& ent : ents)
         {
-            items.emplace_back(&ent, [&]
+            auto& pos = *get<1>(ent);
+            auto& spr = *get<2>(ent);
+
+            auto const& sprdata = sprites.get(spr.name);
+
+            Rect aabb;
+            aabb.left   = pos.x-sprdata.width/2;
+            aabb.right  = pos.x+sprdata.width/2;
+            aabb.bottom = pos.y-sprdata.height/2;
+            aabb.top    = pos.y+sprdata.height/2;
+
+            if( aabb.left<view.right
+            and aabb.right>view.left
+            and aabb.bottom<view.top
+            and aabb.top>view.bottom)
             {
-                auto _ = mat.scope_push();
+                items.emplace_back(&ent, [&]
+                {
+                    auto _ = mat.scope_push();
 
-                auto& pos = *get<1>(ent);
-                auto& spr = *get<2>(ent);
+                    auto const& anim = sprdata.anims.get(spr.anim);
 
-                mat.translate(int(pos.x+spr.offset.x), int(pos.y+spr.offset.y), pos.z);
-                modelMatrix(mat);
+                    mat.translate(int(pos.x+spr.offset.x), int(pos.y+spr.offset.y), pos.z);
+                    modelMatrix(mat);
 
-                getDrawfunc(spr)();
-            });
+                    if (--spr.ticker <= 0)
+                    {
+                        ++spr.anim_frame;
+                        if (spr.anim_frame >= anim.size())
+                            spr.anim_frame = 0;
+                        spr.ticker = anim[spr.anim_frame].duration;
+                    }
+
+                    auto const& frame = anim[spr.anim_frame];
+
+                    sprdata.sheet.draw(frame.r, frame.c);
+                });
+            }
         }
 
         sort(begin(items), end(items), [](DrawItem const& a, DrawItem const& b)
