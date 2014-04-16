@@ -1,5 +1,7 @@
 #include "level.hpp"
 
+#include "meta.hpp"
+
 #include <random>
 using namespace std;
 
@@ -9,7 +11,7 @@ Level::Level()
     height = 75;
     for (auto&& l : data) l.resize(width*height);
 
-    mt19937 rng(2014);
+    mt19937 rng(nd_rand());
     uniform_int_distribution<int> dist(0,4);
 
     for (int i=0; i<height; ++i)
