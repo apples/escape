@@ -34,8 +34,8 @@ using namespace Component;
         addCallback([&]{ tick(); draw(); }, 60.0);
         setWindowTitle("Escape", true);
 
-        min_view.width = (params.width)/2.0;
-        min_view.height = (params.height)/2.0;
+        min_view.width = (params.width);
+        min_view.height = (params.height);
 
         smoothcam = SmoothCamera(10);
 

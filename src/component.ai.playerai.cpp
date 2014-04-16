@@ -16,8 +16,8 @@ void PlayerAI::proc(Ginseng::Entity ent)
     auto& pos = *get<0>(comps);
     auto& vel = *get<1>(comps);
 
-    if (inputs[LEFT]())  vel.vx -= 5;
-    if (inputs[RIGHT]()) vel.vx += 5;
+    if (inputs[LEFT]() and vel.vx>-5.0) vel.vx -= min(vel.vx+5.0,5.0);
+    if (inputs[RIGHT]() and vel.vx<5.0) vel.vx += min(5.0-vel.vx,5.0);
 
     if (inputs[UP]() and senses.onGround) vel.vy += 15;
 }
