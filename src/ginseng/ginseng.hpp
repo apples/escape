@@ -21,6 +21,17 @@ using TID = ::std::int_fast64_t; // Table ID
 
 namespace _detail {
 
+// C++14 Buffer
+
+    template <bool B, typename T = void>
+    using enable_if_t = typename std::enable_if<B,T>::type;
+
+    template <::std::size_t N, typename T>
+    using tuple_element_t = typename ::std::tuple_element<N,T>::type;
+
+    template <typename T>
+    using remove_pointer_t = typename ::std::remove_pointer<T>::type;
+
 // Type Info
 
     inline TID nextTID()
@@ -31,16 +42,16 @@ namespace _detail {
 
 // Component Tags
 
-    template <typename T>
+    template <typename... Ts>
     struct Not
-    {
-        static TID getTID()
-        {
-            return -T::getTID();
-        }
-    };
+    {};
 
 // Traits
+
+    template <typename... Ts>
+    struct Count
+        : ::std::integral_constant<int, sizeof...(Ts)>
+    {};
 
     template <typename... Ts>
     struct TypeList
@@ -51,19 +62,24 @@ namespace _detail {
         template <typename T, typename U>
         struct TypeListCat;
 
+        template <typename... Ts>
+        using TypeListCat_t = typename TypeListCat<Ts...>::type;
+
         template <typename... Ts, typename... Us>
         struct TypeListCat<TypeList<Ts...>, TypeList<Us...>>
         {
             using type = TypeList<Ts..., Us...>;
         };
 
-        template <typename... Ts>
-        using TypeListCat_t = typename TypeListCat<Ts...>::type;
+    // TypeListSize
 
-    template <typename... Ts>
-    struct Count
-        : ::std::integral_constant<int, ::std::tuple_size<::std::tuple<Ts*...>>::value>
-    {};
+        template <typename>
+        struct TypeListSize;
+
+        template <typename... Ts>
+        struct TypeListSize<TypeList<Ts...>>
+            : Count<Ts...>
+        {};
 
     // IsNot
 
@@ -75,8 +91,8 @@ namespace _detail {
             : ::std::false_type
         {};
 
-        template <typename T>
-        struct IsNot<Not<T>>
+        template <typename... Ts>
+        struct IsNot<Not<Ts...>>
             : ::std::true_type
         {};
 
@@ -85,16 +101,19 @@ namespace _detail {
         template <typename...>
         struct RemoveNot;
 
+        template <typename... Ts>
+        using RemoveNot_t = typename RemoveNot<Ts...>::type;
+
         template <typename T, typename... Us>
         struct RemoveNot<T, Us...>
         {
-            using type = TypeListCat_t<TypeList<T>, typename RemoveNot<Us...>::type>;
+            using type = TypeListCat_t<TypeList<T>, RemoveNot_t<Us...>>;
         };
 
-        template <typename T, typename... Us>
-        struct RemoveNot<Not<T>, Us...>
+        template <typename... Ts, typename... Us>
+        struct RemoveNot<Not<Ts...>, Us...>
         {
-            using type = typename RemoveNot<Us...>::type;
+            using type = RemoveNot_t<Us...>;
         };
 
         template <>
@@ -103,28 +122,54 @@ namespace _detail {
             using type = TypeList<>;
         };
 
-        template <typename... Ts>
-        using RemoveNot_t = typename RemoveNot<Ts...>::type;
-
     // GetNots
 
         template <typename...>
         struct GetNots;
 
+        template <typename... Ts>
+        using GetNots_t = typename GetNots<Ts...>::type;
+
         template <typename T, typename... Us>
         struct GetNots<T, Us...>
         {
-            using type = typename GetNots<Us...>::type;
+            using type = GetNots_t<Us...>;
         };
 
-        template <typename T, typename... Us>
-        struct GetNots<Not<T>, Us...>
+        template <typename ...Ts, typename... Us>
+        struct GetNots<Not<Ts...>, Us...>
         {
-            using type = typename TypeListCat<TypeList<T>, typename GetNots<Us...>::type>::type;
+            using type = TypeListCat_t<TypeList<Ts...>, GetNots_t<Us...>>;
         };
 
         template <>
         struct GetNots<>
+        {
+            using type = TypeList<>;
+        };
+
+    // ExpandTags
+
+        template <typename...>
+        struct ExpandTags;
+
+        template <typename... Ts>
+        using ExpandTags_t = typename ExpandTags<Ts...>::type;
+
+        template <typename T, typename... Us>
+        struct ExpandTags<T, Us...>
+        {
+            using type = TypeListCat_t<TypeList<T>, ExpandTags_t<Us...>>;
+        };
+
+        template <typename... Ts, typename... Us>
+        struct ExpandTags<Not<Ts...>, Us...>
+        {
+            using type = TypeListCat_t<TypeList<Ts...>, ExpandTags_t<Us...>>;
+        };
+
+        template <>
+        struct ExpandTags<>
         {
             using type = TypeList<>;
         };
@@ -134,28 +179,28 @@ namespace _detail {
         template <typename...>
         struct AddPointer;
 
+        template <typename... Ts>
+        using AddPointer_t = typename AddPointer<Ts...>::type;
+
         template <template <typename...> class Tup, typename... Ts>
         struct AddPointer<Tup<Ts...>>
         {
             using type = Tup<Ts*...>;
         };
 
-        template <typename... Ts>
-        using AddPointer_t = typename AddPointer<Ts...>::type;
-
     // ToTuple
 
         template <typename...>
         struct ToTuple;
 
-        template <template <typename...> class Tup, typename... Ts>
-        struct ToTuple<Tup<Ts...>>
+        template <typename... Ts>
+        using ToTuple_t = typename ToTuple<Ts...>::type;
+
+        template <typename... Ts>
+        struct ToTuple<TypeList<Ts...>>
         {
             using type = ::std::tuple<Ts...>;
         };
-
-        template <typename... Ts>
-        using ToTuple_t = typename ToTuple<Ts...>::type;
 
     // Filters
 
@@ -382,12 +427,12 @@ namespace _detail {
             // Fills the tuple with components from N by inspecting the entity.
 
             template <typename U, int N = 2, typename T, int M = N-::std::tuple_size<T>::value>
-            typename ::std::enable_if<
+            enable_if_t<
                 (N < ::std::tuple_size<T>::value),
-            bool>::type fill_inspect(T& ele) const
+            bool> fill_inspect(T& ele) const
             {
-                using PtrType = typename ::std::tuple_element<N, T>::type;
-                using Type = typename ::std::remove_pointer<PtrType>::type;
+                using PtrType = tuple_element_t<N, T>;
+                using Type = remove_pointer_t<PtrType>;
 
                 auto const& coms = ::std::get<0>(ele).iter->second.coms;
                 auto iter = coms.find(Type::getTID());
@@ -401,13 +446,13 @@ namespace _detail {
             }
 
             template <typename U, int N = 2, typename T, int M = N-::std::tuple_size<T>::value>
-            typename ::std::enable_if<
+            enable_if_t<
                 (N >= ::std::tuple_size<T>::value) and
                 (M <  ::std::tuple_size<U>::value),
-            bool>::type fill_inspect(T& ele) const
+            bool> fill_inspect(T& ele) const
             {
-                using PtrType = typename ::std::tuple_element<M, U>::type;
-                using Type = typename ::std::remove_pointer<PtrType>::type;
+                using PtrType = tuple_element_t<M, U>;
+                using Type = remove_pointer_t<PtrType>;
 
                 auto const& coms = ::std::get<0>(ele).iter->second.coms;
                 auto iter = coms.find(Type::getTID());
@@ -419,10 +464,10 @@ namespace _detail {
             }
 
             template <typename U, int N = 2, typename T, int M = N-::std::tuple_size<T>::value>
-            typename ::std::enable_if<
+            enable_if_t<
                 (N >= ::std::tuple_size<T>::value) and
                 (M >= ::std::tuple_size<U>::value),
-            bool>::type fill_inspect(T& ele) const
+            bool> fill_inspect(T& ele) const
             {
                 return true;
             }
@@ -464,34 +509,57 @@ namespace _detail {
 
         // fill_memo_vec
 
+            // fill_memo_vec_push
+
+                template <typename>
+                struct fill_memo_vec_push;
+
+                template <typename T>
+                struct fill_memo_vec_push
+                {
+                    static void proc(Vec<TID>& vt)
+                    {
+                        return vt.push_back(T::getTID());
+                    }
+                };
+
+                template <typename... Ts>
+                struct fill_memo_vec_push<Not<Ts...>>
+                {
+                    static void proc(Vec<TID>& vt)
+                    {
+                        return vt.insert(end(vt), {Ts::getTID()...});
+                    }
+                };
+
             template <int, typename...>
             struct fill_memo_vec;
 
             template <int I, typename T, typename... Us>
             struct fill_memo_vec<I, T, Us...>
             {
-                static void func(Vec<TID>& vt)
+                static void proc(Vec<TID>& vt)
                 {
-                    vt.push_back(T::getTID());
-                    return fill_memo_vec<I+1, Us...>::func(vt);
+                    fill_memo_vec_push<T>::proc(vt);
+                    return fill_memo_vec<I+1, Us...>::proc(vt);
                 }
             };
 
             template <int I>
             struct fill_memo_vec<I>
             {
-                static void func(Vec<TID>& vt)
+                static void proc(Vec<TID>& vt)
                 {}
             };
 
         // fill_components
 
             template <int I = 0, typename... Ts>
-            static typename ::std::enable_if<
+            static enable_if_t<
                 I < Count<Ts...>::value,
-            void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
+            void> fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
             {
-                using C = typename ::std::tuple_element<I, ::std::tuple<Ts...>>::type;
+                using C = tuple_element_t<I, ::std::tuple<Ts...>>;
                 TID tid = C::getTID();
 
                 auto iter = etab.find(tid);
@@ -504,9 +572,9 @@ namespace _detail {
             }
 
             template <int I = 0, typename... Ts>
-            static typename ::std::enable_if<
+            static enable_if_t<
                 I >= Count<Ts...>::value,
-            void>::type fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
+            void> fill_components(::std::tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
             {}
 
     public:
@@ -631,8 +699,8 @@ namespace _detail {
 
             Vec<TID> vt;
 
-            vt.reserve(Count<Ts...>::value);
-            fill_memo_vec<0, Ts...>::func(vt);
+            vt.reserve(TypeListSize<typename ExpandTags<Ts...>::type>::value);
+            fill_memo_vec<0, Ts...>::proc(vt);
             ::std::stable_partition(::std::begin(vt), ::std::begin(vt), [](TID tid){return (tid>0);});
 
             auto iter = memos.find(vt);
@@ -673,8 +741,8 @@ namespace _detail {
     using Entity   = _detail::Entity;
     using Database = _detail::Database;
 
-    template <typename T>
-    using Not = _detail::Not<T>;
+    template <typename... Ts>
+    using Not = _detail::Not<Ts...>;
 
 // Public interface
 
