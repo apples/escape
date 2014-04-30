@@ -10,7 +10,7 @@ using namespace std;
 
 namespace Component {
 
-void PlayerAI::proc(Ginseng::Entity ent)
+void PlayerAI::operator()(Ginseng::Entity ent, AI const& ai)
 {
     auto comps = Ginseng::getComponents<Position,Velocity>(ent);
     auto& pos = *get<0>(comps);
@@ -19,7 +19,7 @@ void PlayerAI::proc(Ginseng::Entity ent)
     if (inputs[LEFT]() and vel.vx>-5.0) vel.vx -= min(vel.vx+5.0,5.0);
     if (inputs[RIGHT]() and vel.vx<5.0) vel.vx += min(5.0-vel.vx,5.0);
 
-    if (inputs[UP]() and senses.onGround) vel.vy += 15;
+    if (inputs[UP]() and ai.senses.onGround) vel.vy += 15;
 }
 
 void PlayerAI::setInput(Input i, std::function<bool()> func)

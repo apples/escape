@@ -70,11 +70,12 @@ using namespace Component;
                 solid.rect.bottom = -16;
                 solid.rect.top = solid.rect.bottom + 28;
 
-                auto& ai = entities.newComponent<PlayerAI>(ent);
+                PlayerAI ai;
                 ai.setInput(PlayerAI::LEFT,  iface->key(Interface::ivkArrow('L')));
                 ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
                 ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
                 ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
+                auto& aic = entities.newComponent<AI>(ent, move(ai));
 
                 auto& cam = entities.newComponent<CamLook>(ent);
                 cam.aabb = solid.rect;

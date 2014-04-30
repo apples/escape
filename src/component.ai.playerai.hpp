@@ -8,7 +8,6 @@
 namespace Component {
 
 struct PlayerAI
-    : AIFactory<PlayerAI>
 {
     enum Input
     {
@@ -21,7 +20,7 @@ struct PlayerAI
 
     using Func = std::function<bool()>;
 
-    virtual void proc(Ginseng::Entity ent) override;
+    void operator()(Ginseng::Entity ent, AI const& ai);
 
     void setInput(Input i, Func func);
 

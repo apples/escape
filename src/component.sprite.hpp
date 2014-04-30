@@ -1,13 +1,11 @@
-#pragma once
-
-#include "ginseng/ginseng.hpp"
+#ifndef COMPONENT_SPRITE_HPP
+#define COMPONENT_SPRITE_HPP
 
 #include <string>
 
 namespace Component {
 
 struct Sprite
-    : Ginseng::Component<Sprite>
 {
     std::string name;
     std::string anim;
@@ -23,3 +21,5 @@ struct Sprite
 };
 
 } // namespace Component
+
+#endif // COMPONENT_SPRITE_HPP

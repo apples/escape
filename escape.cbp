@@ -48,6 +48,9 @@
 			<Add library="png" />
 			<Add library="z" />
 		</Linker>
+		<Unit filename="src/component.ai.cpp">
+			<Option virtualFolder="Components/" />
+		</Unit>
 		<Unit filename="src/component.ai.hpp">
 			<Option virtualFolder="Components/" />
 		</Unit>

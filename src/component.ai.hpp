@@ -3,31 +3,25 @@
 
 #include "ginseng/ginseng.hpp"
 
+#include <functional>
+
 namespace Component {
 
 class AI
-    : public Ginseng::Component<AI, false>
 {
-public:
-    virtual void proc(Ginseng::Entity ent) = 0;
+    using Brain = std::function<void(Ginseng::Entity, AI const&)>;
+    Brain brain;
 
+public:
     struct
     {
         bool onGround;
         int wallHit;
         std::vector<Ginseng::Entity> hits;
     } senses;
-};
 
-template <typename Child>
-class AIFactory
-    : public AI
-{
-public:
-    virtual ::std::unique_ptr<ComponentBase> clone() const override
-    {
-        return ::std::unique_ptr<ComponentBase>(new Child(reinterpret_cast<const Child&>(*this)));
-    }
+    AI(Brain b);
+    void proc(Ginseng::Entity ent);
 };
 
 } // namespace Component
