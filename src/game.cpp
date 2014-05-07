@@ -53,17 +53,17 @@ using namespace Component;
             {
                 auto ent = entities.newEntity();
 
-                auto& sprite = entities.newComponent<Sprite>(ent);
+                auto& sprite = entities.addComponent(ent, make_shared<Sprite>());
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.newComponent<Position>(ent);
+                auto& pos = entities.addComponent(ent, make_shared<Position>());
                 pos.x = 0;
                 pos.y = 0;
 
-                auto& vel = entities.newComponent<Velocity>(ent);
+                auto& vel = entities.addComponent(ent, make_shared<Velocity>());
 
-                auto& solid = entities.newComponent<Solid>(ent);
+                auto& solid = entities.addComponent(ent, make_shared<Solid>());
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
@@ -74,9 +74,9 @@ using namespace Component;
                 ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
                 ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
                 ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
-                auto& aic = entities.newComponent<AI>(ent, move(ai));
+                auto& aic = entities.addComponent(ent, make_shared<AI>(move(ai)));
 
-                auto& cam = entities.newComponent<CamLook>(ent);
+                auto& cam = entities.addComponent(ent, make_shared<CamLook>());
                 cam.aabb = solid.rect;
             }
 
@@ -86,11 +86,11 @@ using namespace Component;
             {
                 auto ent = entities.newEntity();
 
-                auto& sprite = entities.newComponent<Sprite>(ent);
+                auto& sprite = entities.addComponent(ent, make_shared<Sprite>());
                 sprite.name = "tile";
                 sprite.anim = "firepot";
 
-                auto& pos = entities.newComponent<Position>(ent);
+                auto& pos = entities.addComponent(ent, make_shared<Position>());
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
                 pos.z = -0.5;
@@ -102,23 +102,23 @@ using namespace Component;
             {
                 auto ent = entities.newEntity();
 
-                auto& sprite = entities.newComponent<Sprite>(ent);
+                auto& sprite = entities.addComponent(ent, make_shared<Sprite>());
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.newComponent<Position>(ent);
+                auto& pos = entities.addComponent(ent, make_shared<Position>());
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
 
-                auto& vel = entities.newComponent<Velocity>(ent);
+                auto& vel = entities.addComponent(ent, make_shared<Velocity>());
 
-                auto& solid = entities.newComponent<Solid>(ent);
+                auto& solid = entities.addComponent(ent, make_shared<Solid>());
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
                 solid.rect.top = solid.rect.bottom + 28;
 
-                auto& ai = entities.newComponent<AI>(ent, GoombaAI{});
+                auto& ai = entities.addComponent(ent, make_shared<AI>(GoombaAI{}));
             }
 
     // Load Level
@@ -131,18 +131,18 @@ using namespace Component;
             {
                 auto tile = entities.newEntity();
 
-                auto& pos = entities.newComponent<Position>(tile);
+                auto& pos = entities.addComponent(tile, make_shared<Position>());
                 pos.y = i*tileWidth+tileWidth/2;
                 pos.x = j*tileWidth+tileWidth/2;
 
-                auto& sprite = entities.newComponent<Sprite>(tile);
+                auto& sprite = entities.addComponent(tile, make_shared<Sprite>());
                 sprite.name = "tile";
 
                 if (lvl.at(0,i,j) == 1)
                 {
                     sprite.anim = "bricks";
 
-                    auto& solid = entities.newComponent<Solid>(tile);
+                    auto& solid = entities.addComponent(tile, make_shared<Solid>());
                     solid.rect.left = -tileWidth/2;
                     solid.rect.right = tileWidth/2;
                     solid.rect.bottom = -tileWidth/2;

@@ -358,7 +358,6 @@ namespace _detail {
         ComponentBase& operator=(ComponentBase&&) = default;
 
         virtual ~ComponentBase() = 0;
-        virtual unique_ptr<ComponentBase> clone() const = 0;
     };
 
     inline ComponentBase::~ComponentBase()
@@ -377,17 +376,11 @@ namespace _detail {
             return tid;
         }
 
-        Child child;
+        shared_ptr<Child> child;
 
-        template <typename... Ts>
-        Component(Ts&&... ts)
-            : child(forward<Ts>(ts)...)
+        Component(shared_ptr<Child> sptr)
+            : child(move(sptr))
         {}
-
-        virtual unique_ptr<ComponentBase> clone() const override final
-        {
-            return make_unique<Component>(child);
-        }
     };
 
 // Types
@@ -526,7 +519,7 @@ namespace _detail {
                 if (iter == coms.end())
                     return false;
 
-                get<N>(ele) = &static_cast<Type*>(iter->second->second.com.get())->child;
+                get<N>(ele) = static_cast<Type*>(iter->second->second.com.get())->child.get();
 
                 return fill_inspect<U, N+1>(ele);
             }
@@ -577,7 +570,7 @@ namespace _detail {
                 for (auto const& p : table.coms)
                 {
                     const ComponentData& cd = p.second;
-                    T* data = &static_cast<Component<T>*>(cd.com.get())->child;
+                    T* data = static_cast<Component<T>*>(cd.com.get())->child.get();
 
                     RElement<T, Us...> ele;
 
@@ -651,7 +644,7 @@ namespace _detail {
                 auto iter = etab.find(tid);
                 if (iter != etab.end())
                 {
-                    get<I>(tup) = &static_cast<Component<C>*>(iter->second->second.com.get())->child;
+                    get<I>(tup) = static_cast<Component<C>*>(iter->second->second.com.get())->child.get();
                 }
 
                 return fill_components<I+1>(tup, etab);
@@ -686,51 +679,6 @@ namespace _detail {
             return {this, entities.emplace(eid, EntityData{}).first};
         }
 
-        Entity cloneEntity(Entity ent)
-        {
-            Entity rv = newEntity();
-
-            Vec<TID> tids;
-
-            for (const auto& p : ent.iter->second.coms)
-            {
-                auto tid = p.first;
-
-                tids.emplace_back(tid);
-
-                ComponentBase const* com = p.second->second.com.get();
-
-                auto& table = components.at(tid);
-
-                auto newcid = createCID();
-                auto newcom = com->clone();
-
-                ComponentData cd (rv, move(newcom));
-
-                auto comiter = table.coms.emplace(newcid, move(cd)).first;
-
-                rv.iter->second.coms.emplace(tid, comiter);
-
-                table.ents.emplace(rv);
-            }
-
-            for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
-            {
-                bool hit = false;
-                for (auto&& a : i->first)
-                    for (auto&& b : tids)
-                        if (a==b)
-                        {
-                            hit = true;
-                            break;
-                        }
-                if (hit) i = memos.erase(i);
-                else ++i;
-            }
-
-            return rv;
-        }
-
         void eraseEntity(Entity ent)
         {
             memos.clear();
@@ -745,8 +693,8 @@ namespace _detail {
             entities.erase(ent.iter);
         }
 
-        template <typename T, typename... Vs>
-        T& newComponent(Entity ent, Vs&&... vs)
+        template <typename T>
+        T& addComponent(Entity ent, shared_ptr<T> sptr)
         {
             TID tid = Component<T>::getTID();
 
@@ -761,8 +709,8 @@ namespace _detail {
 
             CID cid = createCID();
 
-            auto ptr = make_unique<Component<T>>(forward<Vs>(vs)...);
-            T& rval = ptr->child;
+            auto ptr = make_unique<Component<T>>(move(sptr));
+            T& rval = *ptr->child;
 
             ComponentTable& table = components[tid];
             ComponentData dat { ent, move(ptr) };
