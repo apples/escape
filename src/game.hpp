@@ -7,17 +7,24 @@
 
 #include "ginseng/ginseng.hpp"
 
+#include "puddle/puddle.hpp"
+
 #include "resourcepool.hpp"
 #include "spritedata.hpp"
 #include "rect.hpp"
 #include "smoothcamera.hpp"
 
+#include <memory>
 #include <random>
+#include <utility>
 
 class Game
 	: public Inugami::Core
 {
     // Configuration
+
+        template <typename T>
+        using Allocator = Puddle::Allocator<T>;
 
         int tileWidth = 32;
 
@@ -62,6 +69,15 @@ public:
 
         Rect setupCamera();
         void drawSprites(Rect view);
+
+    // Allocation Functions
+
+        template <typename T, typename... Args>
+        static std::shared_ptr<T> alloc(Args&&... args)
+        {
+            Allocator<T> a;
+            return std::allocate_shared<T>(a, std::forward<Args>(args)...);
+        }
 };
 
 #endif // GAME_HPP

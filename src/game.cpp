@@ -53,17 +53,17 @@ using namespace Component;
             {
                 auto ent = entities.newEntity();
 
-                auto& sprite = entities.addComponent(ent, make_shared<Sprite>());
+                auto& sprite = entities.addComponent(ent, alloc<Sprite>());
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.addComponent(ent, make_shared<Position>());
-                pos.x = 0;
-                pos.y = 0;
+                auto& pos = entities.addComponent(ent, alloc<Position>());
+                pos.x = 64;
+                pos.y = 64;
 
-                auto& vel = entities.addComponent(ent, make_shared<Velocity>());
+                auto& vel = entities.addComponent(ent, alloc<Velocity>());
 
-                auto& solid = entities.addComponent(ent, make_shared<Solid>());
+                auto& solid = entities.addComponent(ent, alloc<Solid>());
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
@@ -74,9 +74,9 @@ using namespace Component;
                 ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
                 ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
                 ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
-                auto& aic = entities.addComponent(ent, make_shared<AI>(move(ai)));
+                auto& aic = entities.addComponent(ent, alloc<AI>(move(ai)));
 
-                auto& cam = entities.addComponent(ent, make_shared<CamLook>());
+                auto& cam = entities.addComponent(ent, alloc<CamLook>());
                 cam.aabb = solid.rect;
             }
 
@@ -86,11 +86,11 @@ using namespace Component;
             {
                 auto ent = entities.newEntity();
 
-                auto& sprite = entities.addComponent(ent, make_shared<Sprite>());
+                auto& sprite = entities.addComponent(ent, alloc<Sprite>());
                 sprite.name = "tile";
                 sprite.anim = "firepot";
 
-                auto& pos = entities.addComponent(ent, make_shared<Position>());
+                auto& pos = entities.addComponent(ent, alloc<Position>());
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
                 pos.z = -0.5;
@@ -102,23 +102,23 @@ using namespace Component;
             {
                 auto ent = entities.newEntity();
 
-                auto& sprite = entities.addComponent(ent, make_shared<Sprite>());
+                auto& sprite = entities.addComponent(ent, alloc<Sprite>());
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.addComponent(ent, make_shared<Position>());
+                auto& pos = entities.addComponent(ent, alloc<Position>());
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
 
-                auto& vel = entities.addComponent(ent, make_shared<Velocity>());
+                auto& vel = entities.addComponent(ent, alloc<Velocity>());
 
-                auto& solid = entities.addComponent(ent, make_shared<Solid>());
+                auto& solid = entities.addComponent(ent, alloc<Solid>());
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
                 solid.rect.top = solid.rect.bottom + 28;
 
-                auto& ai = entities.addComponent(ent, make_shared<AI>(GoombaAI{}));
+                auto& ai = entities.addComponent(ent, alloc<AI>(GoombaAI{}));
             }
 
     // Load Level
@@ -131,18 +131,18 @@ using namespace Component;
             {
                 auto tile = entities.newEntity();
 
-                auto& pos = entities.addComponent(tile, make_shared<Position>());
+                auto& pos = entities.addComponent(tile, alloc<Position>());
                 pos.y = i*tileWidth+tileWidth/2;
                 pos.x = j*tileWidth+tileWidth/2;
 
-                auto& sprite = entities.addComponent(tile, make_shared<Sprite>());
+                auto& sprite = entities.addComponent(tile, alloc<Sprite>());
                 sprite.name = "tile";
 
                 if (lvl.at(0,i,j) == 1)
                 {
                     sprite.anim = "bricks";
 
-                    auto& solid = entities.addComponent(tile, make_shared<Solid>());
+                    auto& solid = entities.addComponent(tile, alloc<Solid>());
                     solid.rect.left = -tileWidth/2;
                     solid.rect.right = tileWidth/2;
                     solid.rect.bottom = -tileWidth/2;
@@ -305,112 +305,116 @@ using namespace Component;
                     buckets.emplace_back(x,y);
         };
 #endif
-        for (auto& ent : entities.getEntities<Velocity,Solid>())
         {
             auto _ = profiler->scope("Gravity");
-
-            auto& vel = *get<1>(ent);
-            vel.vy -= 0.5;
+            for (auto& ent : entities.getEntities<Velocity,Solid>())
+            {
+                auto& vel = *get<1>(ent);
+                vel.vy -= 0.5;
+            }
         }
 
-        for (auto& ent : entities.getEntities<Position,Velocity,Solid>())
         {
             auto _ = profiler->scope("Collision");
-
-            auto& eid   =  get<0>(ent);
-            auto& pos   = *get<1>(ent);
-            auto& vel   = *get<2>(ent);
-            auto& solid = *get<3>(ent);
-
-            AI* ai;
-            tie(ai) = Ginseng::getComponents<AI>(eid);
-
-            auto linearCollide = [&](double Position::*d,
-                                     double Velocity::*v,
-                                     double Rect::*lower,
-                                     double Rect::*upper,
-                                     AIHitVec lhits,
-                                     AIHitVec uhits)
+            for (auto& ent : entities.getEntities<Position,Velocity,Solid>())
             {
-                int hit = 0;
-                auto aabb = getRect(pos, solid);
+                auto& eid   =  get<0>(ent);
+                auto& pos   = *get<1>(ent);
+                auto& vel   = *get<2>(ent);
+                auto& solid = *get<3>(ent);
 
-                for (auto& other : entities.getEntities<Position,Solid>())
+                AI* ai;
+                tie(ai) = Ginseng::getComponents<AI>(eid);
+
+                auto linearCollide = [&](double Position::*d,
+                                         double Velocity::*v,
+                                         double Rect::*lower,
+                                         double Rect::*upper,
+                                         AIHitVec lhits,
+                                         AIHitVec uhits)
                 {
-                    auto& eid2   =  get<0>(other);
-                    auto& pos2   = *get<1>(other);
-                    auto& solid2 = *get<2>(other);
+                    int hit = 0;
+                    auto aabb = getRect(pos, solid);
 
-                    if (eid == eid2) continue;
-
-                    auto aabb2 = getRect(pos2, solid2);
-
-                    if (aabb.top > aabb2.bottom
-                    and aabb.bottom < aabb2.top
-                    and aabb.right > aabb2.left
-                    and aabb.left < aabb2.right)
+                    for (auto& other : entities.getEntities<Position,Solid>())
                     {
-                        AI* ai2;
-                        tie(ai2) = Ginseng::getComponents<AI>(eid2);
+                        auto& eid2   =  get<0>(other);
+                        auto& pos2   = *get<1>(other);
+                        auto& solid2 = *get<2>(other);
 
-                        double overlap;
+                        if (eid == eid2) continue;
 
-                        if (vel.*v > 0.0)
-                            overlap = aabb2.*lower-aabb.*upper;
-                        else
-                            overlap = aabb2.*upper-aabb.*lower;
+                        auto aabb2 = getRect(pos2, solid2);
 
-                        pos.*d += overlap;
-                        aabb = getRect(pos, solid);
-                        hit = (overlap>0?-1:1);
-
-                        if (ai)
+                        if (aabb.top > aabb2.bottom
+                        and aabb.bottom < aabb2.top
+                        and aabb.right > aabb2.left
+                        and aabb.left < aabb2.right)
                         {
-                            if (hit<0)
-                            {
-                                if (ai2)
-                                    (ai2->senses.*uhits).emplace_back(eid);
-                                (ai->senses.*lhits).emplace_back(eid2);
-                            }
+                            AI* ai2;
+                            tie(ai2) = Ginseng::getComponents<AI>(eid2);
+
+                            double overlap;
+
+                            if (vel.*v > 0.0)
+                                overlap = aabb2.*lower-aabb.*upper;
                             else
+                                overlap = aabb2.*upper-aabb.*lower;
+
+                            pos.*d += overlap;
+                            aabb = getRect(pos, solid);
+                            hit = (overlap>0?-1:1);
+
+                            if (ai)
                             {
-                                if (ai2)
-                                    (ai2->senses.*lhits).emplace_back(eid);
-                                (ai->senses.*uhits).emplace_back(eid2);
+                                if (hit<0)
+                                {
+                                    if (ai2)
+                                        (ai2->senses.*uhits).emplace_back(eid);
+                                    (ai->senses.*lhits).emplace_back(eid2);
+                                }
+                                else
+                                {
+                                    if (ai2)
+                                        (ai2->senses.*lhits).emplace_back(eid);
+                                    (ai->senses.*uhits).emplace_back(eid2);
+                                }
                             }
                         }
                     }
-                }
 
-                if (hit != 0)
-                    vel.*v = 0.0;
+                    if (hit != 0)
+                        vel.*v = 0.0;
 
-                return hit;
-            };
+                    return hit;
+                };
 
-            pos.x += vel.vx;
-            int xhit = linearCollide(&Position::x,
-                                     &Velocity::vx,
-                                     &Rect::left,
-                                     &Rect::right,
-                                     &AI::Senses::hitsLeft,
-                                     &AI::Senses::hitsRight);
+                pos.x += vel.vx;
+                int xhit = linearCollide(&Position::x,
+                                         &Velocity::vx,
+                                         &Rect::left,
+                                         &Rect::right,
+                                         &AI::Senses::hitsLeft,
+                                         &AI::Senses::hitsRight);
 
-            pos.y += vel.vy;
-            int yhit = linearCollide(&Position::y,
-                                     &Velocity::vy,
-                                     &Rect::bottom,
-                                     &Rect::top,
-                                     &AI::Senses::hitsBottom,
-                                     &AI::Senses::hitsTop);
+                pos.y += vel.vy;
+                int yhit = linearCollide(&Position::y,
+                                         &Velocity::vy,
+                                         &Rect::bottom,
+                                         &Rect::top,
+                                         &AI::Senses::hitsBottom,
+                                         &AI::Senses::hitsTop);
 
-            if (yhit != 0)
-                vel.vx *= 1.0-vel.friction;
+                if (yhit != 0)
+                    vel.vx *= 1.0-vel.friction;
+            }
         }
     }
 
     void Game::slaughter()
     {
+        auto _ = profiler->scope("Game::slaughter()");
+
         auto const& ents = entities.getEntities<KillMe>();
         vector<Ginseng::Entity> dead;
 

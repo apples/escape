@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <tuple>
 #include <typeinfo>
+#include <memory>
 using namespace std;
 
 namespace Component {
@@ -40,7 +41,7 @@ void GoombaAI::operator()(Ginseng::Entity ent, AI const& ai)
             tie(ai2) = Ginseng::getComponents<AI>(ent2);
             if (ai2 && (ai2->brainEq<GoombaAI>() || ai2->brainEq<PlayerAI>()))
             {
-                //ent.getDB()->newComponent<KillMe>(ent);
+                ent.getDB()->addComponent(ent, make_shared<KillMe>());
                 break;
             }
         }
