@@ -37,7 +37,6 @@ class Game
     // Entities
 
         Ginseng::Database entities;
-        Ginseng::Entity playerEID;
 
     // Support
 
@@ -55,6 +54,7 @@ public:
 
         void procAIs();
         void runPhysics();
+        void slaughter();
 
     // Draw Functions
 

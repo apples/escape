@@ -13,15 +13,30 @@ class AI
     Brain brain;
 
 public:
-    struct
+    struct Senses
     {
-        bool onGround;
-        int wallHit;
-        std::vector<Ginseng::Entity> hits;
+        std::vector<Ginseng::Entity> hitsLeft;
+        std::vector<Ginseng::Entity> hitsRight;
+        std::vector<Ginseng::Entity> hitsBottom;
+        std::vector<Ginseng::Entity> hitsTop;
     } senses;
+
+    void clearSenses()
+    {
+        senses.hitsLeft.clear();
+        senses.hitsRight.clear();
+        senses.hitsBottom.clear();
+        senses.hitsTop.clear();
+    }
 
     AI(Brain b);
     void proc(Ginseng::Entity ent);
+
+    template <typename T>
+    bool brainEq() const
+    {
+        return (brain.target_type() == typeid(T));
+    }
 };
 
 } // namespace Component

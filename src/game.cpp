@@ -52,7 +52,6 @@ using namespace Component;
 
             {
                 auto ent = entities.newEntity();
-                playerEID = ent;
 
                 auto& sprite = entities.newComponent<Sprite>(ent);
                 sprite.name = "player";
@@ -83,10 +82,9 @@ using namespace Component;
 
         // Fire Pots
 
-            for (int i=0; i<100; ++i)
+            for (int i=0; i<500; ++i)
             {
                 auto ent = entities.newEntity();
-                playerEID = ent;
 
                 auto& sprite = entities.newComponent<Sprite>(ent);
                 sprite.name = "tile";
@@ -96,6 +94,31 @@ using namespace Component;
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
                 pos.z = -0.5;
+            }
+
+        // Goombas
+
+            for (int i=0; i<500; ++i)
+            {
+                auto ent = entities.newEntity();
+
+                auto& sprite = entities.newComponent<Sprite>(ent);
+                sprite.name = "player";
+                sprite.anim = "idle";
+
+                auto& pos = entities.newComponent<Position>(ent);
+                pos.x = (rng()%149+1)*16;
+                pos.y = (rng()%149+1)*16;
+
+                auto& vel = entities.newComponent<Velocity>(ent);
+
+                auto& solid = entities.newComponent<Solid>(ent);
+                solid.rect.left = -14;
+                solid.rect.right = solid.rect.left + 28;
+                solid.rect.bottom = -16;
+                solid.rect.top = solid.rect.bottom + 28;
+
+                auto& ai = entities.newComponent<AI>(ent, GoombaAI{});
             }
 
     // Load Level
@@ -217,15 +240,22 @@ using namespace Component;
             return;
         }
 
-        procAIs();
+        for (auto&& ent : entities.getEntities<AI>())
+        {
+            auto& ai = *get<1>(ent);
+            ai.clearSenses();
+        }
+
         runPhysics();
+        procAIs();
+        slaughter();
     }
 
     void Game::procAIs()
     {
         auto _ = profiler->scope("Game::procAIs()");
 
-        for (auto& ent : entities.getEntities<AI>())
+        for (auto&& ent : entities.getEntities<AI>())
         {
             auto& e = get<0>(ent);
             auto& ai = *get<1>(ent);
@@ -235,6 +265,8 @@ using namespace Component;
 
     void Game::runPhysics()
     {
+        using AIHitVec = vector<Ginseng::Entity> AI::Senses::*;
+
         auto _ = profiler->scope("Game::runPhysics()");
 
         auto getRect = [](Position const& pos, Solid const& solid)
@@ -246,7 +278,33 @@ using namespace Component;
             rv.top    = pos.y + solid.rect.top;
             return rv;
         };
+        #if 0
+        struct BucketID
+        {
+            int x;
+            int y;
+        };
 
+        unordered_map<Ginseng::Entity*, vector<BucketID>> bucketmap;
+        map<BucketID, Ginseng::Entity*>
+
+        auto setBuckets = [&](Ginseng::Entity& ent, Rect const& rect)
+        {
+            constexpr double bucketlength = (24.0*32.0);
+            auto& buckets = bucketmap[&ent];
+
+            buckets.clear();
+
+            int bxb = int(rect.left/bucketlength);
+            int bxe = int(rect.right/bucketlength);
+            int byb = int(rect.bottom/bucketlength);
+            int bye = int(rect.top/bucketlength);
+
+            for (int x=bxb; x<=bxe; ++x)
+                for (int y=byb; y<=bye; ++y)
+                    buckets.emplace_back(x,y);
+        };
+#endif
         for (auto& ent : entities.getEntities<Velocity,Solid>())
         {
             auto _ = profiler->scope("Gravity");
@@ -267,13 +325,12 @@ using namespace Component;
             AI* ai;
             tie(ai) = Ginseng::getComponents<AI>(eid);
 
-            if (ai)
-                ai->senses.hits.clear();
-
             auto linearCollide = [&](double Position::*d,
                                      double Velocity::*v,
                                      double Rect::*lower,
-                                     double Rect::*upper)
+                                     double Rect::*upper,
+                                     AIHitVec lhits,
+                                     AIHitVec uhits)
             {
                 int hit = 0;
                 auto aabb = getRect(pos, solid);
@@ -293,6 +350,9 @@ using namespace Component;
                     and aabb.right > aabb2.left
                     and aabb.left < aabb2.right)
                     {
+                        AI* ai2;
+                        tie(ai2) = Ginseng::getComponents<AI>(eid2);
+
                         double overlap;
 
                         if (vel.*v > 0.0)
@@ -305,7 +365,20 @@ using namespace Component;
                         hit = (overlap>0?-1:1);
 
                         if (ai)
-                            ai->senses.hits.push_back(eid2);
+                        {
+                            if (hit<0)
+                            {
+                                if (ai2)
+                                    (ai2->senses.*uhits).emplace_back(eid);
+                                (ai->senses.*lhits).emplace_back(eid2);
+                            }
+                            else
+                            {
+                                if (ai2)
+                                    (ai2->senses.*lhits).emplace_back(eid);
+                                (ai->senses.*uhits).emplace_back(eid2);
+                            }
+                        }
                     }
                 }
 
@@ -316,20 +389,38 @@ using namespace Component;
             };
 
             pos.x += vel.vx;
-            int xhit = linearCollide(&Position::x, &Velocity::vx, &Rect::left, &Rect::right);
+            int xhit = linearCollide(&Position::x,
+                                     &Velocity::vx,
+                                     &Rect::left,
+                                     &Rect::right,
+                                     &AI::Senses::hitsLeft,
+                                     &AI::Senses::hitsRight);
 
             pos.y += vel.vy;
-            int yhit = linearCollide(&Position::y, &Velocity::vy, &Rect::bottom, &Rect::top);
-
-            if (ai)
-            {
-                ai->senses.onGround = (yhit<0);
-                ai->senses.wallHit = xhit;
-            }
+            int yhit = linearCollide(&Position::y,
+                                     &Velocity::vy,
+                                     &Rect::bottom,
+                                     &Rect::top,
+                                     &AI::Senses::hitsBottom,
+                                     &AI::Senses::hitsTop);
 
             if (yhit != 0)
                 vel.vx *= 1.0-vel.friction;
         }
+    }
+
+    void Game::slaughter()
+    {
+        auto const& ents = entities.getEntities<KillMe>();
+        vector<Ginseng::Entity> dead;
+
+        dead.reserve(ents.size());
+
+        for (auto& ent : ents)
+            dead.emplace_back(get<0>(ent));
+
+        for (auto& ent : dead)
+            entities.eraseEntity(ent);
     }
 
 // Draw Functions

@@ -14,7 +14,7 @@
 namespace Ginseng {
 
 namespace _detail {
-    using namespace std;
+    using namespace ::std;
 
 // Base IDs
 
@@ -62,17 +62,6 @@ namespace _detail {
     template <typename T>
     using remove_pointer_t = typename remove_pointer<T>::type;
 
-// C++14 Buffer
-
-    template <bool B, typename T = void>
-    using enable_if_t = typename std::enable_if<B,T>::type;
-
-    template <::std::size_t N, typename T>
-    using tuple_element_t = typename ::std::tuple_element<N,T>::type;
-
-    template <typename T>
-    using remove_pointer_t = typename ::std::remove_pointer<T>::type;
-
 // Type Info
 
     inline TID nextTID()
@@ -88,6 +77,62 @@ namespace _detail {
     {};
 
 // Traits
+
+    // IntList
+
+        template <int... Is>
+        struct IntList
+        {};
+
+        // MakeIntList
+
+            template <int I, int... S>
+            struct MakeIntList;
+
+            template <int... I>
+            using MakeIntList_t = typename MakeIntList<I...>::type;
+
+            template <int I, int... S>
+            struct MakeIntList
+            {
+                using type = MakeIntList_t<I-1, I-1, S...>;
+            };
+
+            template <int... S>
+            struct MakeIntList<0, S...>
+            {
+                using type = IntList<S...>;
+            };
+
+    // TupleTail
+
+        template <typename T>
+        struct TupleTail;
+
+        template <typename T>
+        using TupleTail_t = typename TupleTail<T>::type;
+
+        template <template <typename...> class Tup, typename H, typename... T>
+        struct TupleTail<Tup<H,T...>>
+        {
+            using type = Tup<T...>;
+        };
+
+    // refTupleTail
+
+        template <typename T, template <int...> class IL, int I, int... Is>
+        static auto _refTupleTail(T& tup, IL<I,Is...>)
+        -> decltype(tie(get<Is>(tup)...))
+        {
+            return tie(get<Is>(tup)...);
+        }
+
+        template <typename T>
+        auto refTupleTail(T& t)
+        -> decltype(_refTupleTail(t, MakeIntList_t<tuple_size<T>::value>{}))
+        {
+            return _refTupleTail(t, MakeIntList_t<tuple_size<T>::value>{});
+        }
 
     template <typename... Ts>
     struct Count
@@ -363,9 +408,10 @@ namespace _detail {
             friend class _detail::Database;
             using Iter = typename Table<EID,EntityData<T>>::iterator;
 
+            Database* database;
             Iter iter;
 
-            Entity(Iter i) : iter(i) {}
+            Entity(Database* db, Iter i) : database(db), iter(i) {}
 
         public:
             struct Hash
@@ -391,6 +437,11 @@ namespace _detail {
             EID getID() const
             {
                 return iter->first;
+            }
+
+            Database* getDB() const
+            {
+                return database;
             }
         };
 
@@ -632,7 +683,7 @@ namespace _detail {
         Entity newEntity()
         {
             EID eid = createEntityID();
-            return entities.emplace(eid, EntityData{}).first;
+            return {this, entities.emplace(eid, EntityData{}).first};
         }
 
         Entity cloneEntity(Entity ent)
@@ -732,9 +783,14 @@ namespace _detail {
                 return static_cast<Erase<Result<Ts...>>*>(iter->second.get())->t;
             };
 
+            auto sorter = [](RElement<Ts...> const& a, RElement<Ts...> const& b)
+            {
+                return (refTupleTail(a) < refTupleTail(b));
+            };
+
             Vec<TID> vt;
 
-            vt.reserve(TypeListSize<typename ExpandTags<Ts...>::type>::value);
+            vt.reserve(TypeListSize<ExpandTags_t<Ts...>>::value);
             fill_memo_vec<0, Ts...>::proc(vt);
             stable_partition(begin(vt), begin(vt), [](TID tid){return (tid>0);});
 
@@ -749,6 +805,7 @@ namespace _detail {
             {
                 case Selector::INSPECT:
                     rv = select_inspect<Ts...>();
+                    sort(begin(rv), end(rv), sorter);
                     up.reset(new Erase<Result<Ts...>>(move(rv)));
                     iter = memos.emplace(move(vt), move(up)).first;
                     break;
