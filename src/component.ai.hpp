@@ -1,7 +1,8 @@
 #ifndef COMPONENT_AI_HPP
 #define COMPONENT_AI_HPP
 
-#include "ginseng/ginseng.hpp"
+#include "forward.hpp"
+#include "types.hpp"
 
 #include <functional>
 
@@ -9,16 +10,16 @@ namespace Component {
 
 class AI
 {
-    using Brain = std::function<void(Ginseng::Entity, AI const&)>;
+    using Brain = std::function<void(Game&, EntID, AI const&)>;
     Brain brain;
 
 public:
     struct Senses
     {
-        std::vector<Ginseng::Entity> hitsLeft;
-        std::vector<Ginseng::Entity> hitsRight;
-        std::vector<Ginseng::Entity> hitsBottom;
-        std::vector<Ginseng::Entity> hitsTop;
+        std::vector<EntID> hitsLeft;
+        std::vector<EntID> hitsRight;
+        std::vector<EntID> hitsBottom;
+        std::vector<EntID> hitsTop;
     } senses;
 
     void clearSenses()
@@ -30,7 +31,7 @@ public:
     }
 
     AI(Brain b);
-    void proc(Ginseng::Entity ent);
+    void proc(Game& game, EntID ent);
 
     template <typename T>
     bool brainEq() const

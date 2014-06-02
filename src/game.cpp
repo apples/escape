@@ -51,19 +51,19 @@ using namespace Component;
         // Player
 
             {
-                auto ent = entities.newEntity();
+                auto ent = entities.makeEntity();
 
-                auto& sprite = entities.addComponent(ent, alloc<Sprite>());
+                auto& sprite = entities.makeComponent(ent, Sprite{}).first;
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.addComponent(ent, alloc<Position>());
+                auto& pos = entities.makeComponent(ent, Position{}).first;
                 pos.x = 64;
                 pos.y = 64;
 
-                auto& vel = entities.addComponent(ent, alloc<Velocity>());
+                auto& vel = entities.makeComponent(ent, Velocity{}).first;
 
-                auto& solid = entities.addComponent(ent, alloc<Solid>());
+                auto& solid = entities.makeComponent(ent, Solid{}).first;
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
@@ -74,23 +74,23 @@ using namespace Component;
                 ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
                 ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
                 ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
-                auto& aic = entities.addComponent(ent, alloc<AI>(move(ai)));
+                auto& aic = entities.makeComponent(ent, AI{move(ai)}).first;
 
-                auto& cam = entities.addComponent(ent, alloc<CamLook>());
+                auto& cam = entities.makeComponent(ent, CamLook{}).first;
                 cam.aabb = solid.rect;
             }
 
         // Fire Pots
 
-            for (int i=0; i<500; ++i)
+            for (int i=0; i<50000; ++i)
             {
-                auto ent = entities.newEntity();
+                auto ent = entities.makeEntity();
 
-                auto& sprite = entities.addComponent(ent, alloc<Sprite>());
+                auto& sprite = entities.makeComponent(ent, Sprite{}).first;
                 sprite.name = "tile";
                 sprite.anim = "firepot";
 
-                auto& pos = entities.addComponent(ent, alloc<Position>());
+                auto& pos = entities.makeComponent(ent, Position{}).first;
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
                 pos.z = -0.5;
@@ -98,27 +98,27 @@ using namespace Component;
 
         // Goombas
 
-            for (int i=0; i<500; ++i)
+            for (int i=0; i<50; ++i)
             {
-                auto ent = entities.newEntity();
+                auto ent = entities.makeEntity();
 
-                auto& sprite = entities.addComponent(ent, alloc<Sprite>());
+                auto& sprite = entities.makeComponent(ent, Sprite{}).first;
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.addComponent(ent, alloc<Position>());
+                auto& pos = entities.makeComponent(ent, Position{}).first;
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
 
-                auto& vel = entities.addComponent(ent, alloc<Velocity>());
+                auto& vel = entities.makeComponent(ent, Velocity{}).first;
 
-                auto& solid = entities.addComponent(ent, alloc<Solid>());
+                auto& solid = entities.makeComponent(ent, Solid{}).first;
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
                 solid.rect.top = solid.rect.bottom + 28;
 
-                auto& ai = entities.addComponent(ent, alloc<AI>(GoombaAI{}));
+                auto& ai = entities.makeComponent(ent, AI{GoombaAI{}}).first;
             }
 
     // Load Level
@@ -129,20 +129,20 @@ using namespace Component;
         {
             for (int j=0; j<lvl.width; ++j)
             {
-                auto tile = entities.newEntity();
+                auto tile = entities.makeEntity();
 
-                auto& pos = entities.addComponent(tile, alloc<Position>());
+                auto& pos = entities.makeComponent(tile, Position{}).first;
                 pos.y = i*tileWidth+tileWidth/2;
                 pos.x = j*tileWidth+tileWidth/2;
 
-                auto& sprite = entities.addComponent(tile, alloc<Sprite>());
+                auto& sprite = entities.makeComponent(tile, Sprite{}).first;
                 sprite.name = "tile";
 
                 if (lvl.at(0,i,j) == 1)
                 {
                     sprite.anim = "bricks";
 
-                    auto& solid = entities.addComponent(tile, alloc<Solid>());
+                    auto& solid = entities.makeComponent(tile, Solid{}).first;
                     solid.rect.left = -tileWidth/2;
                     solid.rect.right = tileWidth/2;
                     solid.rect.bottom = -tileWidth/2;
@@ -240,9 +240,9 @@ using namespace Component;
             return;
         }
 
-        for (auto&& ent : entities.getEntities<AI>())
+        for (auto&& ent : entities.query<AI>())
         {
-            auto& ai = *get<1>(ent);
+            auto& ai = get<1>(ent).first;
             ai.clearSenses();
         }
 
@@ -255,17 +255,17 @@ using namespace Component;
     {
         auto _ = profiler->scope("Game::procAIs()");
 
-        for (auto&& ent : entities.getEntities<AI>())
+        for (auto&& ent : entities.query<AI>())
         {
             auto& e = get<0>(ent);
-            auto& ai = *get<1>(ent);
-            ai.proc(e);
+            auto& ai = get<1>(ent).first;
+            ai.proc(*this, e);
         }
     }
 
     void Game::runPhysics()
     {
-        using AIHitVec = vector<Ginseng::Entity> AI::Senses::*;
+        using AIHitVec = vector<EntID> AI::Senses::*;
 
         auto _ = profiler->scope("Game::runPhysics()");
 
@@ -307,24 +307,23 @@ using namespace Component;
 #endif
         {
             auto _ = profiler->scope("Gravity");
-            for (auto& ent : entities.getEntities<Velocity,Solid>())
+            for (auto& ent : entities.query<Velocity,Solid>())
             {
-                auto& vel = *get<1>(ent);
+                auto& vel = get<1>(ent).first;
                 vel.vy -= 0.5;
             }
         }
 
         {
             auto _ = profiler->scope("Collision");
-            for (auto& ent : entities.getEntities<Position,Velocity,Solid>())
+            for (auto& ent : entities.query<Position,Velocity,Solid>())
             {
-                auto& eid   =  get<0>(ent);
-                auto& pos   = *get<1>(ent);
-                auto& vel   = *get<2>(ent);
-                auto& solid = *get<3>(ent);
+                auto& eid   = get<0>(ent);
+                auto& pos   = get<1>(ent).first;
+                auto& vel   = get<2>(ent).first;
+                auto& solid = get<3>(ent).first;
 
-                AI* ai;
-                tie(ai) = Ginseng::getComponents<AI>(eid);
+                AI* ai = eid.get<AI>().first;
 
                 auto linearCollide = [&](double Position::*d,
                                          double Velocity::*v,
@@ -336,11 +335,11 @@ using namespace Component;
                     int hit = 0;
                     auto aabb = getRect(pos, solid);
 
-                    for (auto& other : entities.getEntities<Position,Solid>())
+                    for (auto& other : entities.query<Position,Solid>())
                     {
-                        auto& eid2   =  get<0>(other);
-                        auto& pos2   = *get<1>(other);
-                        auto& solid2 = *get<2>(other);
+                        auto& eid2   = get<0>(other);
+                        auto& pos2   = get<1>(other).first;
+                        auto& solid2 = get<2>(other).first;
 
                         if (eid == eid2) continue;
 
@@ -351,8 +350,7 @@ using namespace Component;
                         and aabb.right > aabb2.left
                         and aabb.left < aabb2.right)
                         {
-                            AI* ai2;
-                            tie(ai2) = Ginseng::getComponents<AI>(eid2);
+                            AI* ai2 = eid2.get<AI>().first;
 
                             double overlap;
 
@@ -415,16 +413,10 @@ using namespace Component;
     {
         auto _ = profiler->scope("Game::slaughter()");
 
-        auto const& ents = entities.getEntities<KillMe>();
-        vector<Ginseng::Entity> dead;
-
-        dead.reserve(ents.size());
+        auto const& ents = entities.query<KillMe>();
 
         for (auto& ent : ents)
-            dead.emplace_back(get<0>(ent));
-
-        for (auto& ent : dead)
-            entities.eraseEntity(ent);
+            entities.eraseEntity(get<0>(ent));
     }
 
 // Draw Functions
@@ -458,10 +450,10 @@ using namespace Component;
             view.right = numeric_limits<decltype(view.right)>::lowest();
             view.top = view.right;
 
-            for (auto& ent : entities.getEntities<Position, CamLook>())
+            for (auto& ent : entities.query<Position, CamLook>())
             {
-                auto& pos = *get<1>(ent);
-                auto& cam = *get<2>(ent);
+                auto& pos = get<1>(ent).first;
+                auto& cam = get<2>(ent).first;
 
                 view.left   = min(view.left,   pos.x + cam.aabb.left);
                 view.bottom = min(view.bottom, pos.y + cam.aabb.bottom);
@@ -534,7 +526,7 @@ using namespace Component;
 
         Transform mat;
 
-        auto const& ents = entities.getEntities<Position, Sprite>();
+        auto const& ents = entities.query<Position, Sprite>();
         using Ent = decltype(&ents[0]);
 
         struct DrawItem
@@ -552,8 +544,8 @@ using namespace Component;
 
         for (auto const& ent : ents)
         {
-            auto& pos = *get<1>(ent);
-            auto& spr = *get<2>(ent);
+            auto& pos = get<1>(ent).first;
+            auto& spr = get<2>(ent).first;
 
             auto const& sprdata = sprites.get(spr.name);
 
@@ -594,8 +586,8 @@ using namespace Component;
 
         sort(begin(items), end(items), [](DrawItem const& a, DrawItem const& b)
         {
-            auto& posa = *get<1>(*a.ent);
-            auto& posb = *get<1>(*b.ent);
+            auto& posa = get<1>(*a.ent).first;
+            auto& posb = get<1>(*b.ent).first;
             return (tie(posa.z,posa.x,posa.y) < tie(posb.z,posb.x,posb.y));
         });
 

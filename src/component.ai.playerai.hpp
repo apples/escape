@@ -20,7 +20,7 @@ struct PlayerAI
 
     using Func = std::function<bool()>;
 
-    void operator()(Ginseng::Entity ent, AI const& ai);
+    void operator()(Game& game, EntID ent, AI const& ai);
 
     void setInput(Input i, Func func);
 

@@ -4,6 +4,8 @@
 #include "component.killme.hpp"
 #include "component.velocity.hpp"
 
+#include "game.hpp"
+
 #include <algorithm>
 #include <tuple>
 #include <typeinfo>
@@ -12,14 +14,13 @@ using namespace std;
 
 namespace Component {
 
-void GoombaAI::operator()(Ginseng::Entity ent, AI const& ai)
+void GoombaAI::operator()(Game& game, EntID ent, AI const& ai)
 {
     auto xHit = int(ai.senses.hitsRight.size()) - int(ai.senses.hitsLeft.size());
     if (xHit != 0)
         dir = (xHit>0? -1 : 1);
 
-    Velocity* vel;
-    tie(vel) = Ginseng::getComponents<Velocity>(ent);
+    Velocity* vel = ent.get<Velocity>().first;
 
     if (vel)
     {
@@ -38,10 +39,10 @@ void GoombaAI::operator()(Ginseng::Entity ent, AI const& ai)
 
         for (auto&& ent2 : ai.senses.hitsTop)
         {
-            tie(ai2) = Ginseng::getComponents<AI>(ent2);
+            ai2 = ent2.get<AI>().first;
             if (ai2 && (ai2->brainEq<GoombaAI>() || ai2->brainEq<PlayerAI>()))
             {
-                ent.getDB()->addComponent(ent, make_shared<KillMe>());
+                game.entities.makeComponent(ent, KillMe{});
                 break;
             }
         }

@@ -1,155 +1,105 @@
-#ifndef GINSENG_HPP
-#define GINSENG_HPP
+#ifndef GINSENG_GINSENG_HPP
+#define GINSENG_GINSENG_HPP
 
-#include <cstdint>
 #include <algorithm>
-#include <memory>
-#include <tuple>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
-#include <map>
 #include <vector>
+#include <list>
+#include <iterator>
+#include <tuple>
+#include <memory>
+#include <cstddef>
 
 namespace Ginseng {
 
 namespace _detail {
-    using namespace ::std;
 
-// Base IDs
+    using namespace std;
 
-    using EID = int_fast64_t; // Entity ID
-    using CID = int_fast64_t; // Component ID
-    using TID = int_fast64_t; // Table ID
+// Forward Declarations
 
-// TODO C++14 Buffer
+    template <template <typename> class AllocatorT>
+    class Database;
 
-    template<class T> struct _Unique_if {
-        typedef unique_ptr<T> _Single_object;
-    };
+// http://stackoverflow.com/a/10669041/640397
 
-    template<class T> struct _Unique_if<T[]> {
-        typedef unique_ptr<T[]> _Unknown_bound;
-    };
-
-    template<class T, size_t N> struct _Unique_if<T[N]> {
-        typedef void _Known_bound;
-    };
-
-    template<class T, class... Args>
-        typename _Unique_if<T>::_Single_object
-        make_unique(Args&&... args) {
-            return unique_ptr<T>(new T(forward<Args>(args)...));
-        }
-
-    template<class T>
-        typename _Unique_if<T>::_Unknown_bound
-        make_unique(size_t n) {
-            typedef typename remove_extent<T>::type U;
-            return unique_ptr<T>(new U[n]());
-        }
-
-    template<class T, class... Args>
-        typename _Unique_if<T>::_Known_bound
-        make_unique(Args&&...) = delete;
-
-    template <bool B, typename T = void>
-    using enable_if_t = typename enable_if<B,T>::type;
-
-    template <size_t N, typename T>
-    using tuple_element_t = typename tuple_element<N,T>::type;
-
-    template <typename T>
-    using remove_pointer_t = typename remove_pointer<T>::type;
-
-// Type Info
-
-    inline TID nextTID()
+    template <typename C, typename CI>
+    typename C::iterator make_mutable_iterator(C& container, CI&& iter)
     {
-        static TID tid = 0;
-        return ++tid;
+        return container.erase(iter, iter);
     }
-
-// Component Tags
-
-    template <typename... Ts>
-    struct Not
-    {};
 
 // Traits
 
-    // IntList
-
-        template <int... Is>
-        struct IntList
-        {};
-
-        // MakeIntList
-
-            template <int I, int... S>
-            struct MakeIntList;
-
-            template <int... I>
-            using MakeIntList_t = typename MakeIntList<I...>::type;
-
-            template <int I, int... S>
-            struct MakeIntList
-            {
-                using type = MakeIntList_t<I-1, I-1, S...>;
-            };
-
-            template <int... S>
-            struct MakeIntList<0, S...>
-            {
-                using type = IntList<S...>;
-            };
-
-    // TupleTail
+    // PointerToReference
 
         template <typename T>
-        struct TupleTail;
+        struct PointerToReference;
 
         template <typename T>
-        using TupleTail_t = typename TupleTail<T>::type;
+        using PointerToReference_t = typename PointerToReference<T>::type;
 
-        template <template <typename...> class Tup, typename H, typename... T>
-        struct TupleTail<Tup<H,T...>>
+        template <typename T>
+        struct PointerToReference<T*>
         {
-            using type = Tup<T...>;
+            using type = T&;
         };
 
-    // refTupleTail
+    // SFINAE
 
-        template <typename T, template <int...> class IL, int I, int... Is>
-        static auto _refTupleTail(T& tup, IL<I,Is...>)
-        -> decltype(tie(get<Is>(tup)...))
-        {
-            return tie(get<Is>(tup)...);
-        }
+        template <bool B>
+        using SFINAE = typename enable_if<B,void>::type;
 
-        template <typename T>
-        auto refTupleTail(T& t)
-        -> decltype(_refTupleTail(t, MakeIntList_t<tuple_size<T>::value>{}))
-        {
-            return _refTupleTail(t, MakeIntList_t<tuple_size<T>::value>{});
-        }
+// IndexList
 
-    template <typename... Ts>
-    struct Count
-        : integral_constant<int, sizeof...(Ts)>
+    template <size_t... Is>
+    struct IndexList
     {};
+
+    // MakeIndexList
+
+        template <size_t N, size_t... Is>
+        struct MakeIndexList
+        {
+            using type = typename MakeIndexList<N-1, N-1, Is...>::type;
+        };
+
+        template <size_t N>
+        using MakeIndexList_t = typename MakeIndexList<N>::type;
+
+        template <size_t... Is>
+        struct MakeIndexList<0, Is...>
+        {
+            using type = IndexList<Is...>;
+        };
+
+// TypeList
 
     template <typename... Ts>
     struct TypeList
     {};
 
-    // TypeListCat
+    // TypeListTuple
 
-        template <typename T, typename U>
-        struct TypeListCat;
+        template <typename>
+        struct TypeListTuple;
+
+        template <typename T>
+        using TypeListTuple_t = typename TypeListTuple<T>::type;
 
         template <typename... Ts>
-        using TypeListCat_t = typename TypeListCat<Ts...>::type;
+        struct TypeListTuple<TypeList<Ts...>>
+        {
+            using type = tuple<Ts...>;
+        };
+
+    // TypeListCat
+
+        template <typename, typename>
+        struct TypeListCat;
+
+        template <typename T, typename U>
+        using TypeListCat_t = typename TypeListCat<T,U>::type;
 
         template <typename... Ts, typename... Us>
         struct TypeListCat<TypeList<Ts...>, TypeList<Us...>>
@@ -157,638 +107,804 @@ namespace _detail {
             using type = TypeList<Ts..., Us...>;
         };
 
-    // TypeListSize
+    // TypeListFilter
 
-        template <typename>
-        struct TypeListSize;
+        template <typename T, template <typename> class F, typename = void>
+        struct TypeListFilter;
 
-        template <typename... Ts>
-        struct TypeListSize<TypeList<Ts...>>
-            : Count<Ts...>
-        {};
+        template <typename T, template <typename> class F>
+        using TypeListFilter_t = typename TypeListFilter<T,F>::type;
 
-    // IsNot
-
-        template <typename>
-        struct IsNot;
-
-        template <typename T>
-        struct IsNot
-            : false_type
-        {};
-
-        template <typename... Ts>
-        struct IsNot<Not<Ts...>>
-            : true_type
-        {};
-
-    // RemoveNot
-
-        template <typename...>
-        struct RemoveNot;
-
-        template <typename... Ts>
-        using RemoveNot_t = typename RemoveNot<Ts...>::type;
-
-        template <typename T, typename... Us>
-        struct RemoveNot<T, Us...>
+        template <typename T, typename... Us, template <typename> class F>
+        struct TypeListFilter<TypeList<T,Us...>, F, SFINAE<F<T>::value>>
         {
-            using type = TypeListCat_t<TypeList<T>, RemoveNot_t<Us...>>;
+            using type = TypeListCat_t<TypeList<T>,
+                TypeListFilter_t<TypeList<Us...>, F>>;
         };
 
-        template <typename... Ts, typename... Us>
-        struct RemoveNot<Not<Ts...>, Us...>
+        template <typename T, typename... Us, template <typename> class F>
+        struct TypeListFilter<TypeList<T,Us...>, F, SFINAE<!F<T>::value>>
         {
-            using type = RemoveNot_t<Us...>;
+            using type = TypeListFilter_t<TypeList<Us...>, F>;
         };
 
-        template <>
-        struct RemoveNot<>
+        template <template <typename> class F>
+        struct TypeListFilter<TypeList<>, F, void>
         {
             using type = TypeList<>;
         };
 
-    // GetNots
+    // TypeListImbue
 
-        template <typename...>
-        struct GetNots;
+        template <typename T, template <typename> class U>
+        struct TypeListImbue;
 
-        template <typename... Ts>
-        using GetNots_t = typename GetNots<Ts...>::type;
+        template <typename T, template <typename> class U>
+        using TypeListImbue_t = typename TypeListImbue<T,U>::type;
 
-        template <typename T, typename... Us>
-        struct GetNots<T, Us...>
+        template <typename... Ts, template <typename> class U>
+        struct TypeListImbue<TypeList<Ts...>, U>
         {
-            using type = GetNots_t<Us...>;
+            using type = TypeList<U<Ts>...>;
         };
 
-        template <typename ...Ts, typename... Us>
-        struct GetNots<Not<Ts...>, Us...>
-        {
-            using type = TypeListCat_t<TypeList<Ts...>, GetNots_t<Us...>>;
-        };
+// GUID
 
-        template <>
-        struct GetNots<>
-        {
-            using type = TypeList<>;
-        };
+    using GUID = int_fast64_t;
 
-    // ExpandTags
-
-        template <typename...>
-        struct ExpandTags;
-
-        template <typename... Ts>
-        using ExpandTags_t = typename ExpandTags<Ts...>::type;
-
-        template <typename T, typename... Us>
-        struct ExpandTags<T, Us...>
-        {
-            using type = TypeListCat_t<TypeList<T>, ExpandTags_t<Us...>>;
-        };
-
-        template <typename... Ts, typename... Us>
-        struct ExpandTags<Not<Ts...>, Us...>
-        {
-            using type = TypeListCat_t<TypeList<Ts...>, ExpandTags_t<Us...>>;
-        };
-
-        template <>
-        struct ExpandTags<>
-        {
-            using type = TypeList<>;
-        };
-
-    // AddPointer
-
-        template <typename...>
-        struct AddPointer;
-
-        template <typename... Ts>
-        using AddPointer_t = typename AddPointer<Ts...>::type;
-
-        template <template <typename...> class Tup, typename... Ts>
-        struct AddPointer<Tup<Ts...>>
-        {
-            using type = Tup<Ts*...>;
-        };
-
-    // ToTuple
-
-        template <typename...>
-        struct ToTuple;
-
-        template <typename... Ts>
-        using ToTuple_t = typename ToTuple<Ts...>::type;
-
-        template <typename... Ts>
-        struct ToTuple<TypeList<Ts...>>
-        {
-            using type = tuple<Ts...>;
-        };
-
-    // Filters
-
-        // IsOneOf
-
-            template <typename, typename...>
-            struct IsOneOf;
-
-            template <typename T, typename U, typename... Vs>
-            struct IsOneOf<T, U, Vs...>
-                : IsOneOf<T, Vs...>::value
-            {};
-
-            template <typename T, typename... Vs>
-            struct IsOneOf<T, T, Vs...>
-                : true_type
-            {};
-
-            template <typename T>
-            struct IsOneOf<T>
-                : false_type
-            {};
-
-// Containers
-
-    template <typename T, typename H = hash<T>>
-    using Many = unordered_set<T, H>;
-
-    template <typename K, typename V, typename H = hash<K>>
-    using Table = unordered_map<K, V, H>;
-
-    template <typename K, typename V>
-    using SlowTable = map<K, V>;
-
-    template <typename T>
-    using Vec = vector<T>;
-
-    // Quick Erasure
-
-        struct ErasureBase
-        {
-            virtual ~ErasureBase() = 0;
-        };
-
-        inline ErasureBase::~ErasureBase()
-        {}
-
-        template <typename T>
-        struct Erase
-            : ErasureBase
-        {
-            T t;
-
-            template <typename... Us>
-            Erase(Us&&... us)
-                : t(forward<Us>(us)...)
-            {}
-        };
-
-// Component Base
-
-    class ComponentBase
+    inline GUID& instGUID()
     {
-    public:
-        ComponentBase() = default;
-        ComponentBase(ComponentBase const&) = default;
-        ComponentBase(ComponentBase&&) = default;
-        ComponentBase& operator=(ComponentBase const&) = default;
-        ComponentBase& operator=(ComponentBase&&) = default;
-
-        virtual ~ComponentBase() = 0;
-    };
-
-    inline ComponentBase::~ComponentBase()
-    {}
-
-// Component CRTP
-
-    template <typename Child>
-    class Component
-        : public ComponentBase
-    {
-    public:
-        static TID getTID()
-        {
-            static TID tid = nextTID();
-            return tid;
-        }
-
-        shared_ptr<Child> child;
-
-        Component(shared_ptr<Child> sptr)
-            : child(move(sptr))
-        {}
-    };
-
-// Types
-
-    class Database;
-
-    namespace Types
-    {
-        template <typename T>
-        struct EntityData
-        {
-            Table<TID, typename Table<CID,T>::iterator> coms;
-        };
-
-        template <typename T>
-        class Entity
-        {
-            friend class _detail::Database;
-            using Iter = typename Table<EID,EntityData<T>>::iterator;
-
-            Database* database;
-            Iter iter;
-
-            Entity(Database* db, Iter i) : database(db), iter(i) {}
-
-        public:
-            struct Hash
-            {
-                hash<EID>::result_type operator()(Entity const& e) const
-                {
-                    return hash<EID>{}(e.getID());
-                }
-            };
-
-            Entity() = default;
-
-            bool operator<(Entity const& e) const
-            {
-                return (iter->first < e.iter->first);
-            }
-
-            bool operator==(Entity const& e) const
-            {
-                return (iter->first == e.iter->first);
-            }
-
-            EID getID() const
-            {
-                return iter->first;
-            }
-
-            Database* getDB() const
-            {
-                return database;
-            }
-        };
-
-        struct ComponentData
-        {
-            unique_ptr<Entity<ComponentData>> ent; // Disgusting, this shouldn't have to be a pointer.
-            unique_ptr<ComponentBase> com;
-            ComponentData(Entity<ComponentData> const& e, unique_ptr<ComponentBase>&& c)
-                : ent(new Entity<ComponentData>(e))
-                , com(move(c))
-            {}
-        };
-
-        struct ComponentTable
-        {
-            Table<CID,ComponentData> coms;
-            Many<Entity<ComponentData>, Entity<ComponentData>::Hash> ents;
-        };
+        static GUID guid = 0;
+        return guid;
     }
 
-    using Entity         = Types::Entity<Types::ComponentData>;
-    using EntityData     = Types::EntityData<Types::ComponentData>;
-    using ComponentData  = Types::ComponentData;
-    using ComponentTable = Types::ComponentTable;
-
-// Query results
-
-    template <typename... Ts>
-    using RElement =
-        ToTuple_t
-        <
-            TypeListCat_t
-            <
-                TypeList<Entity>,
-                AddPointer_t< RemoveNot_t<Ts...> >
-            >
-        >;
-
-    template <typename... Ts>
-    using Result = vector<RElement<Ts...>>;
-
-// Main Database engine
-
-    class Database
+    inline GUID nextGUID()
     {
-        Table<EID,EntityData> entities;
-        Table<TID,ComponentTable> components;
-        SlowTable<Vec<TID>,unique_ptr<ErasureBase>> memos;
+        GUID rv = ++instGUID();
+        if (rv == numeric_limits<GUID>::max())
+            throw;
+        return rv;
+    }
 
-        struct
-        {
-            EID eid = 0;
-            CID cid = 0;
-        } uidGen;
+    template <typename T>
+    GUID getGUID()
+    {
+        static GUID guid = nextGUID();
+        return guid;
+    }
 
-        EID createEntityID()
-        {
-            return ++uidGen.eid;
-        }
+// Component
 
-        CID createCID()
-        {
-            return ++uidGen.cid;
-        }
+    template <typename T>
+    class Component
+    {
+        T val;
 
-    // Helpers
+        Component(Component const&) = delete;
+        Component(Component &&) noexcept = delete;
+        Component& operator=(Component const&) = delete;
+        Component& operator=(Component &&) noexcept = delete;
 
-        // fill_inspect
-            // Fills the tuple with components from N by inspecting the entity.
+        public:
 
-            template <typename U, int N = 2, typename T, int M = N-tuple_size<T>::value>
-            enable_if_t<
-                (N < tuple_size<T>::value),
-            bool> fill_inspect(T& ele) const
-            {
-                using PtrType = tuple_element_t<N, T>;
-                using Type = Component<remove_pointer_t<PtrType>>;
-
-                auto const& coms = get<0>(ele).iter->second.coms;
-                auto iter = coms.find(Type::getTID());
-
-                if (iter == coms.end())
-                    return false;
-
-                get<N>(ele) = static_cast<Type*>(iter->second->second.com.get())->child.get();
-
-                return fill_inspect<U, N+1>(ele);
-            }
-
-            template <typename U, int N = 2, typename T, int M = N-tuple_size<T>::value>
-            enable_if_t<
-                (N >= tuple_size<T>::value) and
-                (M <  tuple_size<U>::value),
-            bool> fill_inspect(T& ele) const
-            {
-                using PtrType = tuple_element_t<M, U>;
-                using Type = Component<remove_pointer_t<PtrType>>;
-
-                auto const& coms = get<0>(ele).iter->second.coms;
-                auto iter = coms.find(Type::getTID());
-
-                if (iter != coms.end())
-                    return false;
-
-                return fill_inspect<U, N+1>(ele);
-            }
-
-            template <typename U, int N = 2, typename T, int M = N-tuple_size<T>::value>
-            enable_if_t<
-                (N >= tuple_size<T>::value) and
-                (M >= tuple_size<U>::value),
-            bool> fill_inspect(T& ele) const
-            {
-                return true;
-            }
-
-        // select_inspect
-            // Gathers all entities containing the first component, forwards to fill_inspect.
-
-            template <typename T, typename... Us>
-            Result<T, Us...> select_inspect() const
-            {
-            static_assert(not IsNot<T>::value, "First component must be positive!");
-
-                Result<T, Us...> rval;
-
-                auto iter = components.find(Component<T>::getTID());
-                if (iter == components.end())
-                    return rval;
-
-                const ComponentTable& table = iter->second;
-
-                for (auto const& p : table.coms)
-                {
-                    const ComponentData& cd = p.second;
-                    T* data = static_cast<Component<T>*>(cd.com.get())->child.get();
-
-                    RElement<T, Us...> ele;
-
-                    get<0>(ele) = *cd.ent;
-                    get<1>(ele) = data;
-
-                    if (fill_inspect<typename ToTuple<typename GetNots<Us...>::type>::type>(ele))
-                    {
-                        rval.emplace_back(move(ele));
-                    }
-                }
-
-                return rval;
-            }
-
-        // fill_memo_vec
-
-            // fill_memo_vec_push
-
-                template <typename>
-                struct fill_memo_vec_push;
-
-                template <typename T>
-                struct fill_memo_vec_push
-                {
-                    static void proc(Vec<TID>& vt)
-                    {
-                        return vt.emplace_back(Component<T>::getTID());
-                    }
-                };
-
-                template <typename... Ts>
-                struct fill_memo_vec_push<Not<Ts...>>
-                {
-                    static void proc(Vec<TID>& vt)
-                    {
-                        return vt.emplace(end(vt), {Component<Ts>::getTID()...});
-                    }
-                };
-
-            template <int, typename...>
-            struct fill_memo_vec;
-
-            template <int I, typename T, typename... Us>
-            struct fill_memo_vec<I, T, Us...>
-            {
-                static void proc(Vec<TID>& vt)
-                {
-                    fill_memo_vec_push<T>::proc(vt);
-                    return fill_memo_vec<I+1, Us...>::proc(vt);
-                }
-            };
-
-            template <int I>
-            struct fill_memo_vec<I>
-            {
-                static void proc(Vec<TID>& vt)
-                {}
-            };
-
-        // fill_components
-
-            template <int I = 0, typename... Ts>
-            static enable_if_t<
-                I < Count<Ts...>::value,
-            void> fill_components(tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
-            {
-                using C = tuple_element_t<I, tuple<Ts...>>;
-                TID tid = Component<C>::getTID();
-
-                auto iter = etab.find(tid);
-                if (iter != etab.end())
-                {
-                    get<I>(tup) = static_cast<Component<C>*>(iter->second->second.com.get())->child.get();
-                }
-
-                return fill_components<I+1>(tup, etab);
-            }
-
-            template <int I = 0, typename... Ts>
-            static enable_if_t<
-                I >= Count<Ts...>::value,
-            void> fill_components(tuple<Ts*...>& tup, decltype(EntityData::coms) const& etab)
+            Component(T t)
+                : val(move(t))
             {}
+
+            T& getVal()
+            {
+                return val;
+            }
+    };
+
+    using AbstractComponent = void;
+
+// GUIDPair
+
+    template <typename T>
+    class GUIDPair
+    {
+        pair<GUID,T> val;
+
+        public:
+
+            GUIDPair(GUID guid, T t)
+                : val(guid, move(t))
+            {}
+
+            GUID getGUID() const noexcept
+            {
+                return val.first;
+            }
+
+            T const& getVal() const noexcept
+            {
+                return val.second;
+            }
+    };
+
+    template <typename T>
+    constexpr bool operator<(GUIDPair<T>const& a, GUIDPair<T>const& b) noexcept
+    {
+        return a.getGUID() < b.getGUID();
+    }
+
+    template <typename T>
+    constexpr bool operator<(GUIDPair<T> const& a, GUID guid) noexcept
+    {
+        return a.getGUID() < guid;
+    }
+
+// Entity
+
+    class Entity
+    {
+        template <template <typename> class AllocatorT>
+        friend class Database;
+
+        using ComponentData = GUIDPair<shared_ptr<AbstractComponent>>;
+        using ComponentVec = vector<ComponentData>;
+
+        ComponentVec components;
+
+        public:
+
+            Entity() = default;
+            Entity(Entity const&) = delete;
+            Entity(Entity &&) noexcept = default;
+            Entity& operator=(Entity const&) = delete;
+            Entity& operator=(Entity &&) = default;
+    };
+
+// Queries
+
+    // Not
+
+        template <typename... Ts>
+        struct Not
+        {};
+
+        // IsNot
+
+            template <typename T>
+            struct IsNot : false_type
+            {};
+
+            template <typename... Ts>
+            struct IsNot<Not<Ts...>> : true_type
+            {};
+
+        // FlattenNots
+
+            template <typename T>
+            struct FlattenNots;
+
+            template <typename T>
+            using FlattenNots_t = typename FlattenNots<T>::type;
+
+            template <typename... Ts, typename... Us>
+            struct FlattenNots<TypeList<Not<Ts...>, Us...>>
+            {
+                using type = TypeListCat_t<TypeList<Ts...>,
+                    FlattenNots_t<TypeList<Us...>>>;
+            };
+
+            template <>
+            struct FlattenNots<TypeList<>>
+            {
+                using type = TypeList<>;
+            };
+
+    // IsPositive
+
+        template <typename T>
+        struct IsPositive : true_type
+        {};
+
+        template <typename... Ts>
+        struct IsPositive<Not<Ts...>> : false_type
+        {};
+
+    // QueryTraits
+
+        template <typename DB, typename... Ts>
+        struct QueryTraits
+        {
+            using types = TypeList<Ts...>;
+            using components = TypeListFilter_t<types, IsPositive>;
+
+            using EntID = typename DB::EntID;
+            using ComID = typename DB::ComID;
+
+            template <typename T>
+            using Ref = typename add_lvalue_reference<T>::type;
+
+            template <typename T>
+            using Ptr = T*;
+
+            template <typename T>
+            using CIDPair = pair<T,ComID>;
+
+            using component_refs = TypeListImbue_t<components, Ref>;
+            using component_dats = TypeListImbue_t<component_refs, CIDPair>;
+
+            using result_item = TypeListCat_t<TypeList<EntID>,component_dats>;
+            using result_element = TypeListTuple_t<result_item>;
+
+            using result = vector<result_element>;
+
+            using nots = FlattenNots_t<TypeListFilter_t<types, IsNot>>;
+
+            using component_ptrs = TypeListImbue_t<components, Ptr>;
+            using component_ptr_cids = TypeListImbue_t<component_ptrs, CIDPair>;
+
+            using ptr_tup = TypeListTuple_t<component_ptr_cids>;
+
+            // fillTmp
+
+                template <size_t I=0>
+                static typename enable_if<
+                    I < tuple_size<ptr_tup>::value,
+                bool>::type fillTmp(EntID eid, ptr_tup& tmp)
+                {
+                    using TE = typename tuple_element<I,ptr_tup>::type;
+                    using ComPtr = decltype(declval<TE>().first);
+                    using Com = typename remove_pointer<ComPtr>::type;
+
+                    get<I>(tmp) = eid.get<Com>();
+
+                    if (!get<I>(tmp).first) return false;
+
+                    return fillTmp<I+1>(eid,tmp);
+                }
+
+                template <size_t I=0>
+                static typename enable_if<
+                    I >= tuple_size<ptr_tup>::value,
+                bool>::type fillTmp(EntID eid, ptr_tup& tmp)
+                {
+                    return true;
+                }
+
+
+            // pushTmp
+
+                template <size_t I,
+                    typename CPtr = decltype(get<I>(declval<ptr_tup>()).first),
+                    typename CRef = PointerToReference_t<CPtr>,
+                    typename Pair = pair<CRef,ComID>>
+                static Pair pushTmpHelperGet(ptr_tup const& tmp)
+                {
+                    CRef first = *get<I>(tmp).first;
+                    ComID cid = get<I>(tmp).second;
+
+                    return Pair(first,cid);
+                }
+
+                template <size_t... Is>
+                static void pushTmpHelper(EntID eid,
+                    ptr_tup const& tmp, result& rv,
+                    IndexList<Is...>)
+                {
+                    rv.emplace_back(eid, pushTmpHelperGet<Is>(tmp)...);
+                }
+
+                static void pushTmp(EntID eid, ptr_tup const& tmp, result& rv)
+                {
+                    using IL = MakeIndexList_t<tuple_size<ptr_tup>::value>;
+                    return pushTmpHelper(eid, tmp, rv, IL{});
+                }
+        };
+
+        // QueryResult_t
+
+            template <typename DB, typename... Ts>
+            using QueryResult_t = typename QueryTraits<DB, Ts...>::result;
+
+    // QueryHelper
+
+        // getComs
+
+            template <typename T>
+            struct QueryHelper_getComs;
+
+            template <typename... Ts>
+            struct QueryHelper_getComs<TypeList<Ts...>>
+            {
+                template <typename EID>
+                static auto getComs(EID eid)
+                -> decltype(eid.template getComs<Ts...>())
+                {
+                    return eid.getComs<Ts...>();
+                }
+            };
+
+        // noNots
+
+            template <typename T>
+            struct QueryHelper_noNots;
+
+            template <typename T, typename... Ts>
+            struct QueryHelper_noNots<TypeList<T, Ts...>>
+            {
+                template <typename EID>
+                static bool noNots(EID eid)
+                {
+                    T* ptr = eid.get<T>().first;
+                    if (ptr) return false;
+                    return QueryHelper_noNots<TypeList<Ts...>>::noNots(eid);
+                }
+            };
+
+            template <>
+            struct QueryHelper_noNots<TypeList<>>
+            {
+                template <typename EID>
+                static bool noNots(EID eid)
+                {
+                    return true;
+                }
+            };
+
+/*! Database
+ *
+ * An Entity component Database. Uses the given allocator to allocate
+ * components, and may also use the same allocator for internal data.
+ *
+ * @warning
+ * This container does not perform any synchronization. Therefore, it is not
+ * considered "thread-safe".
+ *
+ * @tparam AllocatorT Component allocator.
+ */
+template <template <typename> class AllocatorT = allocator>
+class Database
+{
+    template <typename T>
+    using AllocList = list<T, AllocatorT<T>>;
+
+    AllocList<Entity> entities;
 
     public:
 
-        enum class Selector
+    // IDs
+
+        class ComID; // forward declaration needed for EntID
+
+        /*! Entity ID
+         *
+         * A handle to an Entity. Very lightweight.
+         */
+        class EntID
         {
-            INSPECT
+            friend class Database;
+
+            typename AllocList<Entity>::const_iterator iter;
+
+            public:
+
+                /*! Query the Entity for a component.
+                 *
+                 * Queries the Entity for the given component type.
+                 * If found, returns a pair containing a pointer to the
+                 * component and a valid ComID handle to the component.
+                 * Otherwise, returns `nullptr` and an undefined ComID.
+                 *
+                 * @tparam T Explicit type of component.
+                 * @return Pair of pointer-to-component and ComID.
+                 */
+                template <typename T>
+                pair<T*,ComID> get() const
+                {
+                    T* ptr = nullptr;
+                    ComID cid;
+
+                    GUID guid = getGUID<T>();
+                    auto& comvec = iter->components;
+
+                    auto pos=lower_bound(begin(comvec), end(comvec), guid);
+
+                    cid.eid = *this;
+
+                    if (pos != end(comvec) && pos->getGUID() == guid)
+                    {
+                        cid.iter = pos;
+                        ptr = &cid.template cast<T>();
+                    }
+
+                    return {ptr,cid};
+                }
+
+                /*! Query the Entity for multiple components.
+                 *
+                 * Returns a tuple containing results equivalent to multiple
+                 * calls to get().
+                 *
+                 * For example, if `eid.getComs<X,Y,Z>()` is called, it is
+                 * equivalent to calling
+                 * `std::make_tuple(get<X>(),get<Y>(),get<Z>())`.
+                 *
+                 * @tparam Ts Explicit component types.
+                 * @return Tuple of results equivalent to get().
+                 */
+                template <typename... Ts>
+                tuple<pair<Ts*,ComID>...> getComs() const
+                {
+                    return make_tuple(get<Ts>()...);
+                }
+
+                /*! Compares this EntID to another for equivalence.
+                 *
+                 * Returns true only if the two EntIDs are handles to the same
+                 * Entity.
+                 *
+                 * @param other The EntID to compare to this.
+                 * @return True if EntIDs are equivalent.
+                 */
+                bool operator==(EntID const& other) const
+                {
+                    return (iter == other.iter);
+                }
+
+                /*! Compares this EntID to another for ordering.
+                 *
+                 * Provides a strict weak ordering for EntIDs.
+                 *
+                 * @param other The EntID to compare to this.
+                 * @return True if this should be ordered before other.
+                 */
+                bool operator<(EntID const& other) const
+                {
+                    return (&*iter < &*other.iter);
+                }
         };
 
-        template <typename... Ts>
-        static tuple<Ts*...> getComponents(Entity ent)
+        /*! Component ID
+         *
+         * A handle to a type-erased component. Very lightweight.
+         */
+        class ComID
         {
-            tuple<Ts*...> rv;
+            friend class Database;
 
-            fill_components<0>(rv, ent.iter->second.coms);
+            EntID eid;
+            Entity::ComponentVec::const_iterator iter;
+
+            public:
+
+                /*! Access component data.
+                 *
+                 * Reverses type erasure on the component's data.
+                 * The specified type must match the component's real type,
+                 * otherwise behaviour is undefined.
+                 *
+                 * @tparam Explicit component data type.
+                 * @return Reference to component data.
+                 */
+                template <typename T>
+                T& cast() const
+                {
+                    auto& sptr = iter->getVal();
+                    auto ptr = static_cast<Component<T>*>(sptr.get());
+                    return ptr->getVal();
+                }
+
+                /*! Get parent's EntID.
+                 *
+                 * Returns a handle to the parent Entity.
+                 *
+                 * @return Handle to parent Entity.
+                 */
+                EntID const& getEID() const
+                {
+                    return eid;
+                }
+
+                /*! Compares this ComID to another for equivalence.
+                 *
+                 * Returns true only if the two ComIDs are handles to the same
+                 * Component.
+                 *
+                 * @param other The ComID to compare to this.
+                 * @return True if ComIDs are equivalent.
+                 */
+                bool operator==(ComID const& other) const
+                {
+                    return (iter == other.iter);
+                }
+
+                /*! Compares this ComID to another for ordering.
+                 *
+                 * Provides a strict weak ordering for ComIDs.
+                 *
+                 * @param other The ComID to compare to this.
+                 * @return True if this should be ordered before other.
+                 */
+                bool operator<(ComID const& other) const
+                {
+                    return less<decltype(&*iter)>{}(&*iter,&*other.iter);
+                }
+        };
+
+    // Entity functions
+
+        /*! Creates a new Entity.
+         *
+         * Creates a new Entity that has no components.
+         *
+         * @return EntID of the new Entity.
+         */
+        EntID makeEntity()
+        {
+            EntID rv;
+            rv.iter = entities.emplace(end(entities));
+            return rv;
+        }
+
+        /*! Destroys an Entity.
+         *
+         * Destroys the given Entity and all associated components.
+         *
+         * @warning
+         * All components associated with the Entity are destroyed.
+         * This means that all references and ComIDs associated with those
+         * components are invalidated.
+         *
+         * @param eid EntID of the Entity to erase.
+         */
+        void eraseEntity(EntID eid)
+        {
+            entities.erase(eid.iter);
+        }
+
+        /*! Emplace an Entity into this Database.
+         *
+         * Move the given Entity into this Database.
+         *
+         * @param ent Entity rvalue to move.
+         * @return EntID to the new Entity.
+         */
+        EntID emplaceEntity(Entity&& ent)
+        {
+            EntID rv;
+            rv.iter = entities.emplace(end(entities), move(ent));
+            return rv;
+        }
+
+        /*! Displace an Entity out of this Database.
+         *
+         * Moves the given Entity out of this Database.
+         *
+         * @warning
+         * All EntIDs associated with the Entity are invalidated.
+         *
+         * @param eid EntID to Entity to displace.
+         * @return Entity value.
+         */
+        Entity displaceEntity(EntID eid)
+        {
+            Entity rv = move(*eid.iter);
+            entities.erase(eid.iter);
+            return rv;
+        }
+
+    // Component functions
+
+        /*! Create new component.
+         *
+         * Creates a new component from the given value and associates it with
+         * the given Entity.
+         * If a component of the same type already exists, it will be
+         * overwritten.
+         *
+         * @warning
+         * All ComIDs associated with components of the given Entity will be
+         * invalidated.
+         *
+         * @param eid Entity to attach new component to.
+         * @param com Component value.
+         * @return Pair of reference-to-component and ComID.
+         */
+        template <typename T>
+        pair<T&,ComID> makeComponent(EntID eid, T com)
+        {
+            ComID cid;
+            GUID guid = getGUID<T>();
+            AllocatorT<Component<T>> alloc;
+            auto entIter = make_mutable_iterator(entities, eid.iter);
+            auto& comvec = entIter->components;
+
+            auto pos = lower_bound(begin(comvec), end(comvec), guid);
+
+            cid.eid = eid;
+
+            if (pos != end(comvec) && pos->getGUID() == guid)
+            {
+                cid.iter = pos;
+                cid.template cast<T>() = move(com);
+            }
+            else
+            {
+                auto ptr = allocate_shared<Component<T>>(alloc, move(com));
+                cid.iter = comvec.emplace(pos, guid, move(ptr));
+            }
+
+            T& comval = cid.template cast<T>();
+
+            return pair<T&,ComID>(comval,cid);
+        }
+
+        /*! Erase a component.
+         *
+         * Destroys the given component and disassociates it from its Entity.
+         *
+         * @warning
+         * All ComIDs associated with components of the component's Entity will
+         * be invalidated.
+         *
+         * @param cid ComID of the component to erase.
+         */
+        void eraseComponent(ComID cid)
+        {
+            auto iter = make_mutable_iterator(entities,cid.eid.iter);
+            auto& comvec = iter->components;
+            comvec.erase(cid.iter);
+        }
+
+        /*! Emplace component data into this Database.
+         *
+         * Moves the given component data into this Database and associates it
+         * with the given Entity.
+         *
+         * @warning
+         * All ComIDs of components associated with the given Entity are
+         * invalidated.
+         *
+         * @param eid Entity to attach component to.
+         * @param dat Component data to move.
+         * @return ComID to the new component.
+         */
+        ComID emplaceComponent(EntID eid, Entity::ComponentData&& dat)
+        {
+            ComID rv;
+            auto& comvec = eid.iter->components;
+            GUID guid = dat.getGUID();
+
+            auto pos = lower_bound(begin(comvec), end(comvec), dat);
+
+            rv.eid = eid;
+
+            if (pos != end(comvec) && pos->getGUID() == guid)
+            {
+                rv.iter = pos;
+                pos->getVal() = move(dat.getVal());
+            }
+            else
+            {
+                rv.iter = comvec.emplace(pos, move(dat));
+            }
 
             return rv;
         }
 
-        Entity newEntity()
+        /*! Displace a component out of this Database.
+         *
+         * Moves the given component out of this Database.
+         *
+         * @warning
+         * All ComIDs associated with the Entity associated with the given
+         * component are invalidated.
+         *
+         * @param cid ComID of the component to displace.
+         * @return Component data.
+         */
+        Entity::ComponentData displaceComponent(ComID cid)
         {
-            EID eid = createEntityID();
-            return {this, entities.emplace(eid, EntityData{}).first};
+            Entity::ComponentData rv = move(*cid.iter);
+            auto& comvec = cid.eid.iter->components;
+            comvec.erase(cid.iter);
+            return rv;
         }
 
-        void eraseEntity(Entity ent)
-        {
-            memos.clear();
+    // query
 
-            for (auto&& p : ent.iter->second.coms)
-            {
-                ComponentTable& tab = components.at(p.first);
-                tab.coms.erase(tab.coms.find(p.second->first));
-                tab.ents.erase(tab.ents.find(ent));
-            }
-
-            entities.erase(ent.iter);
-        }
-
-        template <typename T>
-        T& addComponent(Entity ent, shared_ptr<T> sptr)
-        {
-            TID tid = Component<T>::getTID();
-
-            for (auto i=memos.begin(), ie=memos.end(); i!=ie;)
-            {
-                auto a = i->first.begin();
-                auto b = i->first.end();
-                auto iter = find(a, b, tid);
-                if (iter != b) i = memos.erase(i);
-                else ++i;
-            }
-
-            CID cid = createCID();
-
-            auto ptr = make_unique<Component<T>>(move(sptr));
-            T& rval = *ptr->child;
-
-            ComponentTable& table = components[tid];
-            ComponentData dat { ent, move(ptr) };
-
-            auto comiter = table.coms.emplace(cid, move(dat)).first;
-            table.ents.emplace(ent);
-
-            ent.iter->second.coms.emplace(tid, comiter);
-
-            return rval;
-        }
-
+        /*! Query the Database.
+         *
+         * Queries the Database for Entities that match the given template
+         * properties.
+         *
+         * Template properties can be one of the following:
+         *
+         * - A component type.
+         * - A list of component types in `Not<...>`.
+         *
+         * If a property is a component type, only Entities that contain that
+         * component will be returned.
+         *
+         * If a property is a list of component types in `Not<...>`, only
+         * Entities that do not contain those types will be returned.
+         *
+         * A vector of query elements is returned.
+         *
+         * A query element is a tuple containing an EntID and a series of
+         * component elements.
+         *
+         * A component element is a pair of reference-to-component and ComID.
+         *
+         * There will be a component element for each component type given in
+         * the property list.
+         *
+         * For example, if `db.query<X,Y,Not<Z>>()` is called, its return type
+         * will be determined as follows:
+         *
+         * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{.cpp}
+         * template <typename T> using ComEle = std::pair<T&,ComID>;
+         * using QueryEle = std::tuple<EntID,ComEle<X>,ComEle<Y>>;
+         * using QueryResult = std::vector<QueryEle>;
+         * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         *
+         * It is important to note that the return type of
+         * `db.query<X,Y,Not<Z>>()` will be the same as the return type of
+         * `db.query<X,Y>()`.
+         *
+         * @tparam Ts Query properties.
+         * @return Query results.
+         */
         template <typename... Ts>
-        Result<Ts...> const& getEntities(const Selector method = Selector::INSPECT)
+        typename QueryTraits<Database, Ts...>::result query() const
         {
-            auto unerase = [](decltype(memos.begin()) iter)-> Result<Ts...>&
+            using Traits = QueryTraits<Database, Ts...>;
+            using Result = typename Traits::result;
+            using Nots = typename Traits::nots;
+            using Tmp = typename Traits::ptr_tup;
+
+            Result rv;
+            Tmp tmp;
+
+            // Checks the eid for negative query properties.
+            auto check_negatives = [](EntID eid)
             {
-                return static_cast<Erase<Result<Ts...>>*>(iter->second.get())->t;
+                return QueryHelper_noNots<Nots>::noNots(eid);
             };
 
-            auto sorter = [](RElement<Ts...> const& a, RElement<Ts...> const& b)
+            // Fills tmp with pointers, returns true on success.
+            auto fill_tmp = [&](EntID eid)
             {
-                return (refTupleTail(a) < refTupleTail(b));
+                return Traits::fillTmp(eid,tmp);
             };
 
-            Vec<TID> vt;
-
-            vt.reserve(TypeListSize<ExpandTags_t<Ts...>>::value);
-            fill_memo_vec<0, Ts...>::proc(vt);
-            stable_partition(begin(vt), begin(vt), [](TID tid){return (tid>0);});
-
-            auto iter = memos.find(vt);
-            if (iter != memos.end())
-                return unerase(iter);
-
-            Result<Ts...> rv;
-            unique_ptr<ErasureBase> up;
-
-            switch (method)
+            // Convert tmp pointers into references and push it onto rv.
+            auto push_tmp = [&](EntID eid)
             {
-                case Selector::INSPECT:
-                    rv = select_inspect<Ts...>();
-                    sort(begin(rv), end(rv), sorter);
-                    up.reset(new Erase<Result<Ts...>>(move(rv)));
-                    iter = memos.emplace(move(vt), move(up)).first;
-                    break;
+                return Traits::pushTmp(eid,tmp,rv);
+            };
 
-                default:
-                    throw; //TODO
+            // Inspects eid for query match and pushes it onto rv if it matches.
+            auto inspect_and_push = [&](EntID eid)
+            {
+                if (check_negatives(eid) && fill_tmp(eid))
+                {
+                    push_tmp(eid);
+                }
+            };
+
+            // Query loop
+            for (auto i=begin(entities), e=end(entities); i!=e; ++i)
+            {
+                EntID eid;
+                eid.iter = i;
+                inspect_and_push(eid);
             }
 
-            return unerase(iter);
+            return rv;
         }
-
-        decltype(entities.size()) numEntities() const
-        {
-            return entities.size();
-        }
-    };
+};
 
 } // namespace _detail
 
-// Public types
-
-    using Entity   = _detail::Entity;
-    using Database = _detail::Database;
-
-    template <typename... Ts>
-    using Not = _detail::Not<Ts...>;
-
-// Public interface
-
-    template <typename... Ts>
-    ::std::tuple<Ts*...> getComponents(Entity ent)
-    {
-        return Database::getComponents<Ts...>(ent);
-    }
+using _detail::Database;
+using _detail::Not;
 
 } // namespace Ginseng
 
-#endif
+#endif // GINSENG_GINSENG_HPP

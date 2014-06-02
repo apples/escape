@@ -8,9 +8,9 @@ AI::AI(Brain b)
     : brain(std::move(b))
 {}
 
-void AI::proc(Ginseng::Entity ent)
+void AI::proc(Game& game, EntID ent)
 {
-    return brain(ent,*this);
+    return brain(game, ent, *this);
 }
 
 } // namespace Component
