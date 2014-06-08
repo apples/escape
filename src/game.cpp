@@ -53,17 +53,17 @@ using namespace Component;
             {
                 auto ent = entities.makeEntity();
 
-                auto& sprite = entities.makeComponent(ent, Sprite{}).first;
+                auto& sprite = entities.makeComponent(ent, Sprite{}).data();
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.makeComponent(ent, Position{}).first;
+                auto& pos = entities.makeComponent(ent, Position{}).data();
                 pos.x = 64;
                 pos.y = 64;
 
-                auto& vel = entities.makeComponent(ent, Velocity{}).first;
+                auto& vel = entities.makeComponent(ent, Velocity{}).data();
 
-                auto& solid = entities.makeComponent(ent, Solid{}).first;
+                auto& solid = entities.makeComponent(ent, Solid{}).data();
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
@@ -74,23 +74,23 @@ using namespace Component;
                 ai.setInput(PlayerAI::RIGHT, iface->key(Interface::ivkArrow('R')));
                 ai.setInput(PlayerAI::DOWN,  iface->key(Interface::ivkArrow('D')));
                 ai.setInput(PlayerAI::UP,    iface->key(Interface::ivkArrow('U')));
-                auto& aic = entities.makeComponent(ent, AI{move(ai)}).first;
+                auto& aic = entities.makeComponent(ent, AI{move(ai)}).data();
 
-                auto& cam = entities.makeComponent(ent, CamLook{}).first;
+                auto& cam = entities.makeComponent(ent, CamLook{}).data();
                 cam.aabb = solid.rect;
             }
 
         // Fire Pots
 
-            for (int i=0; i<50000; ++i)
+            for (int i=0; i<500; ++i)
             {
                 auto ent = entities.makeEntity();
 
-                auto& sprite = entities.makeComponent(ent, Sprite{}).first;
+                auto& sprite = entities.makeComponent(ent, Sprite{}).data();
                 sprite.name = "tile";
                 sprite.anim = "firepot";
 
-                auto& pos = entities.makeComponent(ent, Position{}).first;
+                auto& pos = entities.makeComponent(ent, Position{}).data();
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
                 pos.z = -0.5;
@@ -102,23 +102,23 @@ using namespace Component;
             {
                 auto ent = entities.makeEntity();
 
-                auto& sprite = entities.makeComponent(ent, Sprite{}).first;
+                auto& sprite = entities.makeComponent(ent, Sprite{}).data();
                 sprite.name = "player";
                 sprite.anim = "idle";
 
-                auto& pos = entities.makeComponent(ent, Position{}).first;
+                auto& pos = entities.makeComponent(ent, Position{}).data();
                 pos.x = (rng()%149+1)*16;
                 pos.y = (rng()%149+1)*16;
 
-                auto& vel = entities.makeComponent(ent, Velocity{}).first;
+                auto& vel = entities.makeComponent(ent, Velocity{}).data();
 
-                auto& solid = entities.makeComponent(ent, Solid{}).first;
+                auto& solid = entities.makeComponent(ent, Solid{}).data();
                 solid.rect.left = -14;
                 solid.rect.right = solid.rect.left + 28;
                 solid.rect.bottom = -16;
                 solid.rect.top = solid.rect.bottom + 28;
 
-                auto& ai = entities.makeComponent(ent, AI{GoombaAI{}}).first;
+                auto& ai = entities.makeComponent(ent, AI{GoombaAI{}}).data();
             }
 
     // Load Level
@@ -131,18 +131,18 @@ using namespace Component;
             {
                 auto tile = entities.makeEntity();
 
-                auto& pos = entities.makeComponent(tile, Position{}).first;
+                auto& pos = entities.makeComponent(tile, Position{}).data();
                 pos.y = i*tileWidth+tileWidth/2;
                 pos.x = j*tileWidth+tileWidth/2;
 
-                auto& sprite = entities.makeComponent(tile, Sprite{}).first;
+                auto& sprite = entities.makeComponent(tile, Sprite{}).data();
                 sprite.name = "tile";
 
                 if (lvl.at(0,i,j) == 1)
                 {
                     sprite.anim = "bricks";
 
-                    auto& solid = entities.makeComponent(tile, Solid{}).first;
+                    auto& solid = entities.makeComponent(tile, Solid{}).data();
                     solid.rect.left = -tileWidth/2;
                     solid.rect.right = tileWidth/2;
                     solid.rect.bottom = -tileWidth/2;
@@ -242,7 +242,7 @@ using namespace Component;
 
         for (auto&& ent : entities.query<AI>())
         {
-            auto& ai = get<1>(ent).first;
+            auto& ai = get<1>(ent).data();
             ai.clearSenses();
         }
 
@@ -258,7 +258,7 @@ using namespace Component;
         for (auto&& ent : entities.query<AI>())
         {
             auto& e = get<0>(ent);
-            auto& ai = get<1>(ent).first;
+            auto& ai = get<1>(ent).data();
             ai.proc(*this, e);
         }
     }
@@ -269,6 +269,10 @@ using namespace Component;
 
         auto _ = profiler->scope("Game::runPhysics()");
 
+        auto const& ent_pos_vel_sol = entities.query<Position,Velocity,Solid>();
+        auto const& ent_vel_sol = entities.query<Velocity,Solid>();
+        auto const& ent_pos_sol = entities.query<Position,Solid>();
+
         auto getRect = [](Position const& pos, Solid const& solid)
         {
             Rect rv;
@@ -278,7 +282,8 @@ using namespace Component;
             rv.top    = pos.y + solid.rect.top;
             return rv;
         };
-        #if 0
+
+#if 0
         struct BucketID
         {
             int x;
@@ -305,25 +310,27 @@ using namespace Component;
                     buckets.emplace_back(x,y);
         };
 #endif
+
         {
             auto _ = profiler->scope("Gravity");
-            for (auto& ent : entities.query<Velocity,Solid>())
+            for (auto& ent : ent_vel_sol)
             {
-                auto& vel = get<1>(ent).first;
+                auto& vel = get<1>(ent).data();
                 vel.vy -= 0.5;
             }
         }
 
         {
             auto _ = profiler->scope("Collision");
-            for (auto& ent : entities.query<Position,Velocity,Solid>())
+
+            for (auto& ent : ent_pos_vel_sol)
             {
                 auto& eid   = get<0>(ent);
-                auto& pos   = get<1>(ent).first;
-                auto& vel   = get<2>(ent).first;
-                auto& solid = get<3>(ent).first;
+                auto& pos   = get<1>(ent).data();
+                auto& vel   = get<2>(ent).data();
+                auto& solid = get<3>(ent).data();
 
-                AI* ai = eid.get<AI>().first;
+                auto ai = eid.get<AI>();
 
                 auto linearCollide = [&](double Position::*d,
                                          double Velocity::*v,
@@ -335,11 +342,11 @@ using namespace Component;
                     int hit = 0;
                     auto aabb = getRect(pos, solid);
 
-                    for (auto& other : entities.query<Position,Solid>())
+                    for (auto& other : ent_pos_sol)
                     {
                         auto& eid2   = get<0>(other);
-                        auto& pos2   = get<1>(other).first;
-                        auto& solid2 = get<2>(other).first;
+                        auto& pos2   = get<1>(other).data();
+                        auto& solid2 = get<2>(other).data();
 
                         if (eid == eid2) continue;
 
@@ -350,8 +357,6 @@ using namespace Component;
                         and aabb.right > aabb2.left
                         and aabb.left < aabb2.right)
                         {
-                            AI* ai2 = eid2.get<AI>().first;
-
                             double overlap;
 
                             if (vel.*v > 0.0)
@@ -365,17 +370,19 @@ using namespace Component;
 
                             if (ai)
                             {
+                                auto ai2 = eid2.get<AI>();
+
                                 if (hit<0)
                                 {
                                     if (ai2)
-                                        (ai2->senses.*uhits).emplace_back(eid);
-                                    (ai->senses.*lhits).emplace_back(eid2);
+                                        (ai2.data().senses.*uhits).emplace_back(eid);
+                                    (ai.data().senses.*lhits).emplace_back(eid2);
                                 }
                                 else
                                 {
                                     if (ai2)
-                                        (ai2->senses.*lhits).emplace_back(eid);
-                                    (ai->senses.*uhits).emplace_back(eid2);
+                                        (ai2.data().senses.*lhits).emplace_back(eid);
+                                    (ai.data().senses.*uhits).emplace_back(eid2);
                                 }
                             }
                         }
@@ -452,8 +459,8 @@ using namespace Component;
 
             for (auto& ent : entities.query<Position, CamLook>())
             {
-                auto& pos = get<1>(ent).first;
-                auto& cam = get<2>(ent).first;
+                auto& pos = get<1>(ent).data();
+                auto& cam = get<2>(ent).data();
 
                 view.left   = min(view.left,   pos.x + cam.aabb.left);
                 view.bottom = min(view.bottom, pos.y + cam.aabb.bottom);
@@ -544,8 +551,8 @@ using namespace Component;
 
         for (auto const& ent : ents)
         {
-            auto& pos = get<1>(ent).first;
-            auto& spr = get<2>(ent).first;
+            auto& pos = get<1>(ent).data();
+            auto& spr = get<2>(ent).data();
 
             auto const& sprdata = sprites.get(spr.name);
 
@@ -586,8 +593,8 @@ using namespace Component;
 
         sort(begin(items), end(items), [](DrawItem const& a, DrawItem const& b)
         {
-            auto& posa = get<1>(*a.ent).first;
-            auto& posb = get<1>(*b.ent).first;
+            auto& posa = get<1>(*a.ent).data();
+            auto& posb = get<1>(*b.ent).data();
             return (tie(posa.z,posa.x,posa.y) < tie(posb.z,posb.x,posb.y));
         });
 

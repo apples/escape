@@ -325,8 +325,10 @@ namespace _detail {
             template <typename T>
             using CIDPair = pair<T,ComID>;
 
-            using component_refs = TypeListImbue_t<components, Ref>;
-            using component_dats = TypeListImbue_t<component_refs, CIDPair>;
+            template <typename T>
+            using ComInfo = typename DB::template ComInfo<T>;
+
+            using component_dats = TypeListImbue_t<components, ComInfo>;
 
             using result_item = TypeListCat_t<TypeList<EntID>,component_dats>;
             using result_element = TypeListTuple_t<result_item>;
@@ -335,64 +337,31 @@ namespace _detail {
 
             using nots = FlattenNots_t<TypeListFilter_t<types, IsNot>>;
 
-            using component_ptrs = TypeListImbue_t<components, Ptr>;
-            using component_ptr_cids = TypeListImbue_t<component_ptrs, CIDPair>;
+            // fillInfo
 
-            using ptr_tup = TypeListTuple_t<component_ptr_cids>;
-
-            // fillTmp
-
-                template <size_t I=0>
+                template <size_t I=1>
                 static typename enable_if<
-                    I < tuple_size<ptr_tup>::value,
-                bool>::type fillTmp(EntID eid, ptr_tup& tmp)
+                    I < tuple_size<result_element>::value,
+                bool>::type fillInfo(EntID eid, result_element& ele)
                 {
-                    using TE = typename tuple_element<I,ptr_tup>::type;
-                    using ComPtr = decltype(declval<TE>().first);
-                    using Com = typename remove_pointer<ComPtr>::type;
+                    using TE = typename tuple_element<I,result_element>::type;
+                    using Com = typename TE::type;
 
-                    get<I>(tmp) = eid.get<Com>();
+                    auto& info = get<I>(ele);
 
-                    if (!get<I>(tmp).first) return false;
+                    info = eid.get<Com>();
 
-                    return fillTmp<I+1>(eid,tmp);
+                    if (!info) return false;
+
+                    return fillInfo<I+1>(eid,ele);
                 }
 
-                template <size_t I=0>
+                template <size_t I=1>
                 static typename enable_if<
-                    I >= tuple_size<ptr_tup>::value,
-                bool>::type fillTmp(EntID eid, ptr_tup& tmp)
+                    I >= tuple_size<result_element>::value,
+                bool>::type fillInfo(EntID eid, result_element& ele)
                 {
                     return true;
-                }
-
-
-            // pushTmp
-
-                template <size_t I,
-                    typename CPtr = decltype(get<I>(declval<ptr_tup>()).first),
-                    typename CRef = PointerToReference_t<CPtr>,
-                    typename Pair = pair<CRef,ComID>>
-                static Pair pushTmpHelperGet(ptr_tup const& tmp)
-                {
-                    CRef first = *get<I>(tmp).first;
-                    ComID cid = get<I>(tmp).second;
-
-                    return Pair(first,cid);
-                }
-
-                template <size_t... Is>
-                static void pushTmpHelper(EntID eid,
-                    ptr_tup const& tmp, result& rv,
-                    IndexList<Is...>)
-                {
-                    rv.emplace_back(eid, pushTmpHelperGet<Is>(tmp)...);
-                }
-
-                static void pushTmp(EntID eid, ptr_tup const& tmp, result& rv)
-                {
-                    using IL = MakeIndexList_t<tuple_size<ptr_tup>::value>;
-                    return pushTmpHelper(eid, tmp, rv, IL{});
                 }
         };
 
@@ -469,7 +438,12 @@ class Database
 
     // IDs
 
-        class ComID; // forward declaration needed for EntID
+        // forward declarations needed for EntID
+
+            class ComID;
+
+            template <typename Com>
+            class ComInfo;
 
         /*! Entity ID
          *
@@ -494,7 +468,7 @@ class Database
                  * @return Pair of pointer-to-component and ComID.
                  */
                 template <typename T>
-                pair<T*,ComID> get() const
+                ComInfo<T> get() const
                 {
                     T* ptr = nullptr;
                     ComID cid;
@@ -528,7 +502,7 @@ class Database
                  * @return Tuple of results equivalent to get().
                  */
                 template <typename... Ts>
-                tuple<pair<Ts*,ComID>...> getComs() const
+                tuple<ComInfo<Ts>...> getComs() const
                 {
                     return make_tuple(get<Ts>()...);
                 }
@@ -626,6 +600,41 @@ class Database
                 }
         };
 
+        template <typename Com>
+        class ComInfo
+        {
+            friend class Database;
+
+            Com* ptr = nullptr;
+            ComID cid;
+
+            ComInfo(Com* p, ComID i)
+                : ptr(p)
+                , cid(i)
+            {}
+
+            public:
+
+                using type = Com;
+
+                ComInfo() = default;
+
+                explicit operator bool() const
+                {
+                    return ptr;
+                }
+
+                Com& data() const
+                {
+                    return *ptr;
+                }
+
+                ComID const& id() const
+                {
+                    return cid;
+                }
+        };
+
     // Entity functions
 
         /*! Creates a new Entity.
@@ -706,7 +715,7 @@ class Database
          * @return Pair of reference-to-component and ComID.
          */
         template <typename T>
-        pair<T&,ComID> makeComponent(EntID eid, T com)
+        ComInfo<T> makeComponent(EntID eid, T com)
         {
             ComID cid;
             GUID guid = getGUID<T>();
@@ -729,9 +738,9 @@ class Database
                 cid.iter = comvec.emplace(pos, guid, move(ptr));
             }
 
-            T& comval = cid.template cast<T>();
+            T* comptr = &cid.template cast<T>();
 
-            return pair<T&,ComID>(comval,cid);
+            return {comptr,cid};
         }
 
         /*! Erase a component.
@@ -856,7 +865,7 @@ class Database
             using Traits = QueryTraits<Database, Ts...>;
             using Result = typename Traits::result;
             using Nots = typename Traits::nots;
-            using Tmp = typename Traits::ptr_tup;
+            using Tmp = typename Traits::result_element;
 
             Result rv;
             Tmp tmp;
@@ -870,13 +879,14 @@ class Database
             // Fills tmp with pointers, returns true on success.
             auto fill_tmp = [&](EntID eid)
             {
-                return Traits::fillTmp(eid,tmp);
+                get<0>(tmp) = eid;
+                return Traits::fillInfo(eid,tmp);
             };
 
             // Convert tmp pointers into references and push it onto rv.
-            auto push_tmp = [&](EntID eid)
+            auto push_tmp = [&]()
             {
-                return Traits::pushTmp(eid,tmp,rv);
+                return rv.emplace_back(move(tmp));
             };
 
             // Inspects eid for query match and pushes it onto rv if it matches.
@@ -884,7 +894,7 @@ class Database
             {
                 if (check_negatives(eid) && fill_tmp(eid))
                 {
-                    push_tmp(eid);
+                    push_tmp();
                 }
             };
 

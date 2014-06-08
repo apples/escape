@@ -36,8 +36,6 @@
 extern Inugami::Logger<>* logger;
 extern Inugami::Profiler* profiler;
 
-std::uint_fast32_t nd_rand();
-
 template <typename T>
 std::ostream& print(std::ostream& os, T const& t)
 {
@@ -58,5 +56,23 @@ std::string stringify(Ts&&... ts)
     print(ss, ts...);
     return ss.str();
 }
+
+// Platform-specific Stuff
+
+    #ifdef __MINGW32__
+        #include <chrono>
+        inline auto nd_rand()
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+            auto past = now.time_since_epoch();
+            return past.count();
+        }
+    #else
+        #include <random>
+        inline auto nd_rand()
+        {
+            return std::random_device{}();
+        }
+    #endif // __MINGW32__
 
 #endif // LOG_H

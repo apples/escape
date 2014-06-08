@@ -20,27 +20,22 @@ void GoombaAI::operator()(Game& game, EntID ent, AI const& ai)
     if (xHit != 0)
         dir = (xHit>0? -1 : 1);
 
-    Velocity* vel = ent.get<Velocity>().first;
+    Velocity& vel = ent.get<Velocity>().data();
 
-    if (vel)
+    if (dir < 0 and vel.vx>-5.0) vel.vx -= min(vel.vx+5.0,5.0);
+    if (dir > 0 and vel.vx< 5.0) vel.vx += min(5.0-vel.vx,5.0);
+    if (!ai.senses.hitsBottom.empty() and
+        (!ai.senses.hitsLeft.empty() or !ai.senses.hitsRight.empty()))
     {
-        if (dir < 0 and vel->vx>-5.0) vel->vx -= min(vel->vx+5.0,5.0);
-        if (dir > 0 and vel->vx< 5.0) vel->vx += min(5.0-vel->vx,5.0);
-        if (!ai.senses.hitsBottom.empty() and
-            (!ai.senses.hitsLeft.empty() or !ai.senses.hitsRight.empty()))
-        {
-            vel->vy += 15;
-        }
+        vel.vy += 15;
     }
 
     if (!ai.senses.hitsTop.empty())
     {
-        AI* ai2;
-
         for (auto&& ent2 : ai.senses.hitsTop)
         {
-            ai2 = ent2.get<AI>().first;
-            if (ai2 && (ai2->brainEq<GoombaAI>() || ai2->brainEq<PlayerAI>()))
+            auto ai2 = ent2.get<AI>();
+            if (ai2 && (ai2.data().brainEq<GoombaAI>() || ai2.data().brainEq<PlayerAI>()))
             {
                 game.entities.makeComponent(ent, KillMe{});
                 break;
