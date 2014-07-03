@@ -8,32 +8,44 @@
 #################################
 #################################
 
-function usage {
+usage() {
     echo "Usage: build.sh <target> <platform>"
     echo "    Targets: release debug"
-    echo "    Platforms: win32 win64"
+    echo "    Platforms: win32 win64 darwin"
 }
 
 TARGET=$1
 PLATFORM=$2
 
-if [[ -z "$PLATFORM" ]]
-then
-    PLATFORM="win64"
-fi
+DEFAULT_TARGET="release"
+DEFAULT_PLATFORM=""
+
+case $(cc -dumpmachine) in
+    *-darwin*)
+        DEFAULT_PLATFORM="darwin"
+        ;;
+    *)
+        DEFAULT_PLATFORM="win64"
+        ;;
+esac
 
 if [[ -z "$TARGET" ]]
 then
-    TARGET="release"
+    TARGET="$DEFAULT_TARGET"
+fi
+
+if [[ -z "$PLATFORM" ]]
+then
+    PLATFORM="$DEFAULT_PLATFORM"
 fi
 
 ###########################################################
 ### Shared Flags - Applies to all targets and platforms ###
 ###########################################################
 
-S_CXXFLAGS="-std=c++1y -Wall -DGLM_FORCE_RADIANS -DGLEW_STATIC"
-S_LDFLAGS="-static"
-S_LDLIBS="-lglfw3 -lglew32 -lyaml-cpp -lpng -lz -lopengl32 -lgdi32"
+S_CXXFLAGS="-std=c++1y -Wall -DGLM_FORCE_RADIANS -DGLEW_STATIC -DGLFW_INCLUDE_GLCOREARB"
+S_LDFLAGS=""
+S_LDLIBS="-lyaml-cpp -lpng -lz"
 
 ####################################################
 ### Target Flags - Flags specific to each target ###
@@ -48,7 +60,8 @@ case $TARGET in
         T_CXXFLAGS="-Ofast"
         ;;
     debug)
-        T_CXXFLAGS="-Og -g"
+        T_CXXFLAGS="-g"
+        T_LDFLAGS="-g"
         ;;
     profile)
         T_CXXFLAGS="-O2 -pg"
@@ -72,9 +85,17 @@ P_LDLIBS=""
 case $PLATFORM in
     win32)
         P_CXXFLAGS="-m32"
-        P_LDFLAGS="-m32"
+        P_LDFLAGS="-m32 -static"
+        P_LDLIBS="-lglfw3 -lglew32 -lopengl32 -lgdi32"
         ;;
     win64)
+        P_LDFLAGS="-static"
+        P_LDLIBS="-lglfw3 -lglew32 -lopengl32 -lgdi32"
+        ;;
+    darwin)
+        P_CXXFLAGS="-stdlib=libc++ -I/opt/local/include"
+        P_LDFLAGS="-L/opt/local/lib"
+        P_LDLIBS="-lglfw -lGLEW -framework OpenGL -framework Cocoa -framework IOkit"
         ;;
     *)
         echo "Invalid platform."
@@ -99,13 +120,27 @@ export LDLIBS="$LDLIBS $S_LDLIBS $T_LDLIBS $P_LDLIBS"
 RESPITE_CACHE=".respite-$TARGET-$PLATFORM"
 
 mkdir -p $RESPITE_CACHE
-cmd //c "mklink /J .respite $RESPITE_CACHE"
+
+case $PLATFORM in
+    win*)
+        cmd //c "mklink /J .respite $RESPITE_CACHE"
+        ;;
+    *)
+        ln -s "$RESPITE_CACHE" .respite
+        ;;
+esac
 
 ######################################
 ### Check for existing executables ###
 ######################################
 
-EXE="escape-$TARGET-$PLATFORM.exe"
+EXE="escape-$TARGET-$PLATFORM"
+
+case $PLATFORM in
+    win*)
+        EXE="${EXE}.exe"
+        ;;
+esac
 
 if [[ -f $EXE ]]
 then
@@ -116,7 +151,7 @@ fi
 ### Respite - Build the project ###
 ###################################
 
-if respite 2> error.log
+if respite 2>error.log
 then
     mv a.respite $EXE
 else
@@ -124,4 +159,11 @@ else
     echo "BUILD FAILED"
 fi
 
-cmd //c "rd .respite"
+case $PLATFORM in
+    win*)
+        cmd //c "rd .respite"
+        ;;
+    *)
+        rm .respite
+        ;;
+esac

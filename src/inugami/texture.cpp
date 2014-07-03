@@ -104,7 +104,7 @@ void Texture::upload(const Image& img, bool smooth, bool clamp)
     glBindTexture(GL_TEXTURE_2D, share->id);
 
     GLuint filter = (smooth)? GL_LINEAR : GL_NEAREST;
-    GLuint wrap   = (clamp )? GL_CLAMP  : GL_REPEAT;
+    GLuint wrap   = (clamp )? GL_CLAMP_TO_EDGE  : GL_REPEAT;
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);

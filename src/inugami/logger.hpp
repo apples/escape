@@ -90,7 +90,7 @@ public:
     template <unsigned int PRIORITY, typename... T>
     Log& log(const T&... args)
     {
-        return logger.log<PRIORITY>(args...);
+        return logger.template log<PRIORITY>(args...);
     }
 
 private:

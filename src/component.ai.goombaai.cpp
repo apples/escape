@@ -30,6 +30,7 @@ void GoombaAI::operator()(Game& game, EntID ent, AI const& ai)
         vel.vy += 15;
     }
 
+    #if 0
     if (!ai.senses.hitsTop.empty())
     {
         for (auto&& ent2 : ai.senses.hitsTop)
@@ -42,6 +43,7 @@ void GoombaAI::operator()(Game& game, EntID ent, AI const& ai)
             }
         }
     }
+    #endif
 }
 
 } // namespace Component

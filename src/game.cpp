@@ -103,7 +103,7 @@ using namespace Component;
                 auto ent = entities.makeEntity();
 
                 auto& sprite = entities.makeComponent(ent, Sprite{}).data();
-                sprite.name = "player";
+                sprite.name = "goomba";
                 sprite.anim = "idle";
 
                 auto& pos = entities.makeComponent(ent, Position{}).data();
@@ -119,6 +119,29 @@ using namespace Component;
                 solid.rect.top = solid.rect.bottom + 28;
 
                 auto& ai = entities.makeComponent(ent, AI{GoombaAI{}}).data();
+            }
+
+        // Balls
+
+            for (int i=0; i<50; ++i)
+            {
+                auto ent = entities.makeEntity();
+
+                auto& sprite = entities.makeComponent(ent, Sprite{}).data();
+                sprite.name = "ball";
+                sprite.anim = "ball";
+
+                auto& pos = entities.makeComponent(ent, Position{}).data();
+                pos.x = (rng()%149+1)*16;
+                pos.y = (rng()%149+1)*16;
+
+                auto& vel = entities.makeComponent(ent, Velocity{}).data();
+
+                auto& solid = entities.makeComponent(ent, Solid{}).data();
+                solid.rect.left = -14;
+                solid.rect.right = solid.rect.left + 28;
+                solid.rect.bottom = -16;
+                solid.rect.top = solid.rect.bottom + 28;
             }
 
     // Load Level
@@ -357,6 +380,14 @@ using namespace Component;
                         and aabb.right > aabb2.left
                         and aabb.left < aabb2.right)
                         {
+                            auto vel2info = eid2.get<Velocity>();
+
+                            if (vel2info)
+                            {
+                                auto& vel2 = vel2info.data();
+                                vel2.*v += vel.*v;
+                            }
+
                             double overlap;
 
                             if (vel.*v > 0.0)

@@ -123,6 +123,7 @@ void dumpProfiles()
     }
 }
 
+#ifdef _WIN32
 LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
@@ -134,6 +135,7 @@ LRESULT CALLBACK WinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+#endif
 
 void errorMessage(const char* str)
 {

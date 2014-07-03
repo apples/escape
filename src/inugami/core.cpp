@@ -37,9 +37,20 @@
 #include <ostream>
 #include <sstream>
 
+#include "../meta.hpp"
+
 namespace Inugami {
 
 int Core::numCores = 0;
+
+namespace {
+
+void errorCB(int i, const char* str)
+{
+    logger->log<0>("Error ", i, ": ", str);
+}
+
+}
 
 class CoreException : public Exception
 {
@@ -91,7 +102,11 @@ Core::Core(const RenderParams &params)
 
     , shader()
 {
-    if (numCores == 0) glfwInit();
+    if (numCores == 0)
+    {
+        glfwSetErrorCallback(errorCB);
+        glfwInit();
+    }
 
     GLFWmonitor* monitor = nullptr;
 
@@ -113,6 +128,11 @@ Core::Core(const RenderParams &params)
 
     glfwWindowHint(GLFW_SAMPLES, rparams.fsaaSamples);
 
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+
     window = glfwCreateWindow(
           rparams.width
         , rparams.height
@@ -128,7 +148,8 @@ Core::Core(const RenderParams &params)
 
     activate();
 
-    if (numCores == 0 && glewInit() != GLEW_OK)
+    glewExperimental = GL_TRUE;
+    if (glewInit() != GLEW_OK)
     {
         throw CoreException(this, "Failed to initialize GLEW.");
     }

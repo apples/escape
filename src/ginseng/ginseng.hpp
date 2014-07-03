@@ -349,7 +349,7 @@ namespace _detail {
 
                     auto& info = get<I>(ele);
 
-                    info = eid.get<Com>();
+                    info = eid.template get<Com>();
 
                     if (!info) return false;
 
@@ -384,7 +384,7 @@ namespace _detail {
                 static auto getComs(EID eid)
                 -> decltype(eid.template getComs<Ts...>())
                 {
-                    return eid.getComs<Ts...>();
+                    return eid.template getComs<Ts...>();
                 }
             };
 
@@ -399,7 +399,7 @@ namespace _detail {
                 template <typename EID>
                 static bool noNots(EID eid)
                 {
-                    T* ptr = eid.get<T>().first;
+                    T* ptr = eid.template get<T>().first;
                     if (ptr) return false;
                     return QueryHelper_noNots<TypeList<Ts...>>::noNots(eid);
                 }
@@ -460,12 +460,12 @@ class Database
                 /*! Query the Entity for a component.
                  *
                  * Queries the Entity for the given component type.
-                 * If found, returns a pair containing a pointer to the
-                 * component and a valid ComID handle to the component.
-                 * Otherwise, returns `nullptr` and an undefined ComID.
+                 * If found, returns a valid ComInfo object for the requested
+                 * component.
+                 * Otherwise, returns an invalid ComInfo object.
                  *
                  * @tparam T Explicit type of component.
-                 * @return Pair of pointer-to-component and ComID.
+                 * @return ComInfo for the requested component.
                  */
                 template <typename T>
                 ComInfo<T> get() const
@@ -600,6 +600,14 @@ class Database
                 }
         };
 
+        /*! Component Info
+         *
+         * A handle to a component of known type.
+         * Provides direct access to the component,
+         * as well as its ComID.
+         *
+         * @tparam Com Component type.
+         */
         template <typename Com>
         class ComInfo
         {
@@ -619,16 +627,37 @@ class Database
 
                 ComInfo() = default;
 
+                /*! Test for validity.
+                 *
+                 * True if this ComInfo points to a component.
+                 * False otherwise.
+                 *
+                 * @return True if valid.
+                 */
                 explicit operator bool() const
                 {
                     return ptr;
                 }
 
+                /*! Get component.
+                 *
+                 * @warning
+                 * Behaviour is undefined if this ComInfo is invalid.
+                 *
+                 * @return The component.
+                 */
                 Com& data() const
                 {
                     return *ptr;
                 }
 
+                /*! Get component ID.
+                 *
+                 * @warning
+                 * Behaviour is undefined if this ComInfo is invalid.
+                 *
+                 * @return A ComID handle for this component.
+                 */
                 ComID const& id() const
                 {
                     return cid;
@@ -712,7 +741,7 @@ class Database
          *
          * @param eid Entity to attach new component to.
          * @param com Component value.
-         * @return Pair of reference-to-component and ComID.
+         * @return ComInfo for the new component.
          */
         template <typename T>
         ComInfo<T> makeComponent(EntID eid, T com)

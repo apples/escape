@@ -5,11 +5,32 @@ player:
     height: 32
     anims:
         idle:
+            - r: 2
+              c: 0
+              dur: 10
+            - r: 2
+              c: 1
+              dur: 10
+goomba:
+    texture: enemies
+    width: 32
+    height: 32
+    anims:
+        idle:
             - r: 0
               c: 0
               dur: 10
             - r: 0
               c: 1
+              dur: 10
+ball:
+    texture: enemies
+    width: 32
+    height: 32
+    anims:
+        ball:
+            - r: 3
+              c: 3
               dur: 10
 tile:
     texture: tiles
