@@ -376,9 +376,9 @@ using namespace Component;
                         auto aabb2 = getRect(pos2, solid2);
 
                         if (aabb.top > aabb2.bottom
-                        and aabb.bottom < aabb2.top
-                        and aabb.right > aabb2.left
-                        and aabb.left < aabb2.right)
+                        &&  aabb.bottom < aabb2.top
+                        &&  aabb.right > aabb2.left
+                        &&  aabb.left < aabb2.right)
                         {
                             auto vel2info = eid2.get<Velocity>();
 
@@ -594,9 +594,9 @@ using namespace Component;
             aabb.top    = pos.y+sprdata.height/2;
 
             if( aabb.left<view.right
-            and aabb.right>view.left
-            and aabb.bottom<view.top
-            and aabb.top>view.bottom)
+            && aabb.right>view.left
+            && aabb.bottom<view.top
+            && aabb.top>view.bottom)
             {
                 items.emplace_back(&ent, [&]
                 {

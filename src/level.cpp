@@ -18,7 +18,7 @@ Level::Level()
     {
         for (int j=0; j<width; ++j)
         {
-            if (i==0 or j==0 or i==height-1 or j==width-1)
+            if (i==0 || j==0 || i==height-1 || j==width-1)
                 at(0, i, j) = 1;
             else
                 at(0, i, j) = (dist(rng)==0);

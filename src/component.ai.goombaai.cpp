@@ -22,10 +22,10 @@ void GoombaAI::operator()(Game& game, EntID ent, AI const& ai)
 
     Velocity& vel = ent.get<Velocity>().data();
 
-    if (dir < 0 and vel.vx>-5.0) vel.vx -= min(vel.vx+5.0,5.0);
-    if (dir > 0 and vel.vx< 5.0) vel.vx += min(5.0-vel.vx,5.0);
-    if (!ai.senses.hitsBottom.empty() and
-        (!ai.senses.hitsLeft.empty() or !ai.senses.hitsRight.empty()))
+    if (dir < 0 && vel.vx>-5.0) vel.vx -= min(vel.vx+5.0,5.0);
+    if (dir > 0 && vel.vx< 5.0) vel.vx += min(5.0-vel.vx,5.0);
+    if (!ai.senses.hitsBottom.empty() &&
+        (!ai.senses.hitsLeft.empty() || !ai.senses.hitsRight.empty()))
     {
         vel.vy += 15;
     }
